@@ -247,29 +247,21 @@ export async function downloadFromDrive(fileId: string): Promise<Buffer> {
 }
 
 /**
- * Get storage usage info for the Google Drive
- * @returns Storage usage in bytes and limit
+ * Get storage usage info for the Google Drive folder.
+ *
+ * IMPORTANT: Service Accounts don't have their own storage quota,
+ * so `drive.about.get({ fields: 'storageQuota' })` returns 0 usage.
+ * Instead, we calculate actual used bytes by listing all files in the
+ * configured folder and summing their sizes.
+ *
+ * @returns Storage usage in bytes and limit (defaults to 15GB for Google Drive free tier)
  */
 export async function getDriveStorageInfo(): Promise<{ usedBytes: number; limitBytes: number }> {
-  const drive = await getDrive();
+  const files = await listDriveFiles();
+  const usedBytes = files.reduce((sum, file) => sum + file.size, 0);
 
-  const response = await drive.about.get({
-    fields: 'storageQuota',
-  });
-
-  const data = response.data as Record<string, unknown>;
-  const quota = (data.storageQuota || {}) as Record<string, string>;
-
-  // Service Accounts may not have storageQuota.limit (it uses the owner's quota)
-  // If limit is 0 or not available, default to 15GB (Google Drive free tier)
-  const usedBytes = parseInt(quota.usage || '0', 10);
-  let limitBytes = parseInt(quota.limit || '0', 10);
-
-  if (!limitBytes || limitBytes === 0) {
-    // Service Account shares the owner's Google Drive quota
-    // Default to 15GB (Google Drive free tier)
-    limitBytes = 15 * 1024 * 1024 * 1024; // 15 GB
-  }
+  // Google Drive free tier is 15GB
+  const limitBytes = 15 * 1024 * 1024 * 1024; // 15 GB
 
   return { usedBytes, limitBytes };
 }
