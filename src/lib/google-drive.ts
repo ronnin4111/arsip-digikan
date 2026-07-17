@@ -1,10 +1,10 @@
-import { google } from 'googleapis';
-import { JWT } from 'google-auth-library';
-import type { drive_v3 } from 'googleapis';
-
 /**
  * Google Drive integration for document storage.
  * Uses a Service Account for server-to-server authentication.
+ *
+ * IMPORTANT: This module uses LAZY/DYNAMIC imports for googleapis
+ * to avoid loading the heavy module when it's not needed.
+ * Only routes that actually use Google Drive APIs will load the module.
  *
  * Setup:
  * 1. Go to Google Cloud Console → Create Project
@@ -14,11 +14,15 @@ import type { drive_v3 } from 'googleapis';
  * 5. Set the folder ID in GOOGLE_DRIVE_FOLDER_ID env var
  */
 
-// Lazy-initialized auth client
-let authClient: JWT | null = null;
-let driveInstance: drive_v3.Drive | null = null;
+// Types for lazy-loaded modules
+type JWTType = import('google-auth-library').JWT;
+type DriveType = import('googleapis').drive_v3.Drive;
 
-function getAuthClient(): JWT {
+// Lazy-initialized instances (not loaded until first use)
+let authClient: JWTType | null = null;
+let driveInstance: DriveType | null = null;
+
+async function getAuthClient(): Promise<JWTType> {
   if (authClient) return authClient;
 
   const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
@@ -30,6 +34,9 @@ function getAuthClient(): JWT {
     );
   }
 
+  // Dynamic import - only loads google-auth-library when actually needed
+  const { JWT } = await import('google-auth-library');
+
   authClient = new JWT({
     email: clientEmail,
     key: privateKey,
@@ -39,11 +46,18 @@ function getAuthClient(): JWT {
   return authClient;
 }
 
-function getDrive(): drive_v3.Drive {
+async function getDrive(): Promise<DriveType> {
   if (driveInstance) return driveInstance;
-  const auth = getAuthClient();
-  // Use type assertion to work around type mismatch between JWT and OAuth2Client
-  driveInstance = google.drive({ version: 'v3', auth: auth as unknown as Parameters<typeof google.drive>[0]['auth'] });
+  const auth = await getAuthClient();
+
+  // Dynamic import - only loads googleapis when actually needed
+  const { google } = await import('googleapis');
+
+  driveInstance = google.drive({
+    version: 'v3',
+    auth: auth as unknown as Parameters<typeof google.drive>[0]['auth'],
+  });
+
   return driveInstance;
 }
 
@@ -57,6 +71,7 @@ function getFolderId(): string {
 
 /**
  * Check if Google Drive is configured (env vars are set)
+ * This is a pure function - NO googleapis import needed
  */
 export function isGoogleDriveConfigured(): boolean {
   return !!(
@@ -67,13 +82,25 @@ export function isGoogleDriveConfigured(): boolean {
 }
 
 /**
+ * Check if a string is a Google Drive file ID
+ * This is a pure function - NO googleapis import needed
+ * Google Drive file IDs are typically 28-60 character alphanumeric strings
+ */
+export function isGoogleDriveFileId(value: string): boolean {
+  if (!value) return false;
+  // Google Drive file IDs are alphanumeric with possible hyphens/underscores
+  // They don't start with http and don't contain slashes or dots
+  return !value.startsWith('http') && !value.includes('/') && !value.includes('.');
+}
+
+/**
  * Upload a PDF file to Google Drive
  * @param filename - The name for the file in Google Drive
  * @param buffer - The file content as a Buffer
  * @returns The Google Drive file ID
  */
 export async function uploadToDrive(filename: string, buffer: Buffer): Promise<string> {
-  const drive = getDrive();
+  const drive = await getDrive();
   const folderId = getFolderId();
 
   const response = await drive.files.create({
@@ -101,7 +128,7 @@ export async function uploadToDrive(filename: string, buffer: Buffer): Promise<s
  * @param fileId - The Google Drive file ID
  */
 export async function deleteFromDrive(fileId: string): Promise<void> {
-  const drive = getDrive();
+  const drive = await getDrive();
   await drive.files.delete({ fileId });
 }
 
@@ -111,7 +138,7 @@ export async function deleteFromDrive(fileId: string): Promise<void> {
  */
 export async function getFileInfo(fileId: string): Promise<{ size: number; name: string; mimeType: string } | null> {
   try {
-    const drive = getDrive();
+    const drive = await getDrive();
     const response = await drive.files.get({
       fileId,
       fields: 'size,name,mimeType',
@@ -135,7 +162,7 @@ export async function getFileInfo(fileId: string): Promise<{ size: number; name:
  * Sets the file to be viewable by anyone with the link.
  */
 export async function getFileViewLink(fileId: string): Promise<string> {
-  const drive = getDrive();
+  const drive = await getDrive();
 
   // Try to create a permission for anyone with link to view
   try {
@@ -160,7 +187,7 @@ export async function getFileViewLink(fileId: string): Promise<string> {
  * @returns Direct download URL
  */
 export async function getFileDownloadUrl(fileId: string): Promise<string> {
-  const drive = getDrive();
+  const drive = await getDrive();
 
   // Ensure the file is accessible
   try {
@@ -184,7 +211,7 @@ export async function getFileDownloadUrl(fileId: string): Promise<string> {
  * @returns Buffer with file content
  */
 export async function downloadFromDrive(fileId: string): Promise<Buffer> {
-  const drive = getDrive();
+  const drive = await getDrive();
 
   const response = await drive.files.get(
     { fileId, alt: 'media' },
@@ -199,7 +226,7 @@ export async function downloadFromDrive(fileId: string): Promise<Buffer> {
  * @returns Storage usage in bytes and limit
  */
 export async function getDriveStorageInfo(): Promise<{ usedBytes: number; limitBytes: number }> {
-  const drive = getDrive();
+  const drive = await getDrive();
 
   const response = await drive.about.get({
     fields: 'storageQuota',
@@ -207,37 +234,26 @@ export async function getDriveStorageInfo(): Promise<{ usedBytes: number; limitB
 
   const data = response.data as Record<string, unknown>;
   const quota = (data.storageQuota || {}) as Record<string, string>;
-  
+
   // Service Accounts may not have storageQuota.limit (it uses the owner's quota)
   // If limit is 0 or not available, default to 15GB (Google Drive free tier)
   const usedBytes = parseInt(quota.usage || '0', 10);
   let limitBytes = parseInt(quota.limit || '0', 10);
-  
+
   if (!limitBytes || limitBytes === 0) {
     // Service Account shares the owner's Google Drive quota
     // Default to 15GB (Google Drive free tier)
     limitBytes = 15 * 1024 * 1024 * 1024; // 15 GB
   }
-  
-  return { usedBytes, limitBytes };
-}
 
-/**
- * Check if a string is a Google Drive file ID
- * Google Drive file IDs are typically 28-60 character alphanumeric strings
- */
-export function isGoogleDriveFileId(value: string): boolean {
-  if (!value) return false;
-  // Google Drive file IDs are alphanumeric with possible hyphens/underscores
-  // They don't start with http and don't contain slashes or dots
-  return !value.startsWith('http') && !value.includes('/') && !value.includes('.');
+  return { usedBytes, limitBytes };
 }
 
 /**
  * List all files in the configured Google Drive folder
  */
 export async function listDriveFiles(): Promise<Array<{ id: string; name: string; size: number }>> {
-  const drive = getDrive();
+  const drive = await getDrive();
   const folderId = getFolderId();
 
   const response = await drive.files.list({

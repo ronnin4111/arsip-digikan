@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyToken, JwtPayload } from '@/lib/auth';
-import { isBlobUrl, isGoogleDriveFileId, getDownloadUrl } from '@/lib/blob';
+import { isBlobUrl } from '@/lib/blob';
+import { isGoogleDriveFileId } from '@/lib/google-drive';
 
 export async function GET(
   request: NextRequest,
@@ -45,6 +46,8 @@ export async function GET(
 
     // Google Drive file ID → redirect to download URL
     if (isGoogleDriveFileId(pdfRef)) {
+      // Dynamic import - only loads googleapis when downloading a Drive file
+      const { getDownloadUrl } = await import('@/lib/blob');
       const downloadUrl = await getDownloadUrl(pdfRef);
       if (downloadUrl) {
         return NextResponse.redirect(downloadUrl);

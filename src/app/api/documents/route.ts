@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getAuthUser } from '@/lib/auth';
-import { uploadPdf } from '@/lib/blob';
 
 function transformDoc(doc: any) {
   return {
@@ -21,6 +20,7 @@ function transformDoc(doc: any) {
 }
 
 // GET /api/documents - List documents with filters
+// NOTE: No googleapis import needed for listing documents!
 export async function GET(request: NextRequest) {
   const authUser = getAuthUser(request);
   if (!authUser) {
@@ -62,6 +62,7 @@ export async function GET(request: NextRequest) {
 }
 
 // POST /api/documents - Upload new document with PDF
+// Uses dynamic import for uploadPdf to avoid loading googleapis for GET requests
 export async function POST(request: NextRequest) {
   const authUser = getAuthUser(request);
   if (!authUser) {
@@ -89,13 +90,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'File PDF wajib diunggah' }, { status: 400 });
     }
 
-    // Upload PDF to Vercel Blob
+    // Dynamic import - only loads googleapis when actually uploading
+    const { uploadPdf } = await import('@/lib/blob');
+
+    // Upload PDF to storage (Google Drive or Vercel Blob)
     const uniqueFilename = `${Date.now()}-${Math.round(Math.random() * 1e9)}-${file.name}`;
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    const blobUrl = await uploadPdf(uniqueFilename, buffer);
+    const storageRef = await uploadPdf(uniqueFilename, buffer);
 
-    // Create document record (pdfFilename now stores the blob URL)
+    // Create document record (pdfFilename stores the storage reference)
     const document = await db.document.create({
       data: {
         type,
@@ -105,7 +109,7 @@ export async function POST(request: NextRequest) {
         sender,
         recipient,
         date,
-        pdfFilename: blobUrl,
+        pdfFilename: storageRef,
         seksi,
         createdBy: authUser.id,
       },

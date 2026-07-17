@@ -1,26 +1,21 @@
 import { put, del, head } from '@vercel/blob';
-import {
-  isGoogleDriveConfigured as gdIsConfigured,
-  uploadToDrive,
-  deleteFromDrive,
-  getFileInfo,
-  getFileViewLink,
-  getFileDownloadUrl,
-  isGoogleDriveFileId as gdIsFileId,
-  getDriveStorageInfo,
-} from './google-drive';
 
-// Re-export for convenience
-export { isGoogleDriveFileId } from './google-drive';
+// Pure functions re-exported directly (no googleapis loading)
+export { isGoogleDriveConfigured, isGoogleDriveFileId } from './google-drive';
 
 /**
  * Upload a PDF file to storage (Google Drive or Vercel Blob)
+ * Uses dynamic imports for Google Drive to avoid loading googleapis eagerly.
+ *
  * @param filename - The name for the file
  * @param buffer - The file content as a Buffer
  * @returns Storage identifier (Google Drive file ID or Vercel Blob URL)
  */
 export async function uploadPdf(filename: string, buffer: Buffer): Promise<string> {
-  if (gdIsConfigured()) {
+  // Dynamic import - only loads googleapis when actually uploading
+  const { isGoogleDriveConfigured, uploadToDrive } = await import('./google-drive');
+
+  if (isGoogleDriveConfigured()) {
     // Upload to Google Drive - return the file ID
     return uploadToDrive(filename, buffer);
   }
@@ -35,10 +30,15 @@ export async function uploadPdf(filename: string, buffer: Buffer): Promise<strin
 
 /**
  * Delete a PDF file from storage
+ * Uses dynamic imports for Google Drive to avoid loading googleapis eagerly.
+ *
  * @param identifier - Google Drive file ID or Vercel Blob URL
  */
 export async function deletePdf(identifier: string): Promise<void> {
-  if (gdIsFileId(identifier)) {
+  // Dynamic import - only loads googleapis when actually deleting
+  const { isGoogleDriveFileId, deleteFromDrive } = await import('./google-drive');
+
+  if (isGoogleDriveFileId(identifier)) {
     return deleteFromDrive(identifier);
   }
 
@@ -60,12 +60,16 @@ export function isBlobUrl(url: string): boolean {
 
 /**
  * Get the size of a stored file
+ * Uses dynamic imports for Google Drive to avoid loading googleapis eagerly.
+ *
  * @param identifier - Google Drive file ID or Vercel Blob URL
  * @returns Size in bytes
  */
 export async function getFileSize(identifier: string): Promise<number> {
   try {
-    if (gdIsFileId(identifier)) {
+    const { isGoogleDriveFileId, getFileInfo } = await import('./google-drive');
+
+    if (isGoogleDriveFileId(identifier)) {
       const info = await getFileInfo(identifier);
       return info?.size ?? 0;
     }
@@ -82,12 +86,16 @@ export async function getFileSize(identifier: string): Promise<number> {
 
 /**
  * Get the preview/view URL for a document
+ * Uses dynamic imports for Google Drive to avoid loading googleapis eagerly.
+ *
  * @param identifier - Google Drive file ID or Vercel Blob URL
  * @returns URL that can be used to preview the PDF
  */
 export async function getPreviewUrl(identifier: string): Promise<string | null> {
   try {
-    if (gdIsFileId(identifier)) {
+    const { isGoogleDriveFileId, getFileViewLink } = await import('./google-drive');
+
+    if (isGoogleDriveFileId(identifier)) {
       return getFileViewLink(identifier);
     }
 
@@ -102,12 +110,16 @@ export async function getPreviewUrl(identifier: string): Promise<string | null> 
 
 /**
  * Get the download URL for a document
+ * Uses dynamic imports for Google Drive to avoid loading googleapis eagerly.
+ *
  * @param identifier - Google Drive file ID or Vercel Blob URL
  * @returns URL that can be used to download the PDF
  */
 export async function getDownloadUrl(identifier: string): Promise<string | null> {
   try {
-    if (gdIsFileId(identifier)) {
+    const { isGoogleDriveFileId, getFileDownloadUrl } = await import('./google-drive');
+
+    if (isGoogleDriveFileId(identifier)) {
       return getFileDownloadUrl(identifier);
     }
 
@@ -122,14 +134,16 @@ export async function getDownloadUrl(identifier: string): Promise<string | null>
 
 /**
  * Get storage usage information
+ * Uses dynamic imports for Google Drive to avoid loading googleapis eagerly.
+ *
  * Returns combined usage from Google Drive or Vercel Blob
  */
 export async function getStorageUsage(): Promise<{ usedBytes: number; limitBytes: number; fileCount: number }> {
-  if (gdIsConfigured()) {
+  const { isGoogleDriveConfigured, getDriveStorageInfo } = await import('./google-drive');
+
+  if (isGoogleDriveConfigured()) {
     try {
       const driveInfo = await getDriveStorageInfo();
-      // We can't easily count just our folder's files without listing them,
-      // so we return the overall Drive storage usage
       return {
         usedBytes: driveInfo.usedBytes,
         limitBytes: driveInfo.limitBytes,

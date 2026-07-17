@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getAuthUser } from '@/lib/auth';
-import { deletePdf, isBlobUrl, isGoogleDriveFileId } from '@/lib/blob';
+import { isBlobUrl } from '@/lib/blob';
+import { isGoogleDriveFileId } from '@/lib/google-drive';
 
 function transformDoc(doc: any) {
   return {
@@ -100,8 +101,10 @@ export async function DELETE(
     }
 
     // Delete PDF from storage (Google Drive or Vercel Blob)
+    // Use dynamic import to avoid loading googleapis eagerly
     if (isGoogleDriveFileId(existing.pdfFilename) || isBlobUrl(existing.pdfFilename)) {
       try {
+        const { deletePdf } = await import('@/lib/blob');
         await deletePdf(existing.pdfFilename);
       } catch (e) {
         console.error('Failed to delete file from storage:', e);

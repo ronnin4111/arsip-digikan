@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getAuthUser } from '@/lib/auth';
-import { getFileSize, getStorageUsage, isGoogleDriveFileId, isBlobUrl } from '@/lib/blob';
-import { isGoogleDriveConfigured } from '@/lib/google-drive';
+import { isBlobUrl } from '@/lib/blob';
+import { isGoogleDriveConfigured, isGoogleDriveFileId } from '@/lib/google-drive';
 
 export async function GET(request: NextRequest) {
   const authUser = getAuthUser(request);
@@ -20,6 +20,8 @@ export async function GET(request: NextRequest) {
     // If Google Drive is configured, use Drive storage info
     if (isGoogleDriveConfigured()) {
       try {
+        // Dynamic import - only loads googleapis when fetching Drive storage info
+        const { getStorageUsage } = await import('@/lib/blob');
         const driveInfo = await getStorageUsage();
         return NextResponse.json({
           usedBytes: driveInfo.usedBytes,
@@ -34,6 +36,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Calculate actual sizes from blob/drive files
+    // Dynamic import to avoid loading googleapis if not needed
+    const { getFileSize } = await import('@/lib/blob');
+
     let usedBytes = 0;
     const sizePromises = documents.map(async (doc) => {
       const ref = doc.pdfFilename;
