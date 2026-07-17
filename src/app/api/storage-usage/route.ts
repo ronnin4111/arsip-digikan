@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getAuthUser } from '@/lib/auth';
+import { isBlobUrl, getBlobSize } from '@/lib/blob';
 
 const LIMIT_BYTES = 100 * 1024 * 1024; // 100MB
 
@@ -11,12 +12,23 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const fileCount = await db.document.count();
+    const documents = await db.document.findMany({
+      select: { pdfFilename: true },
+    });
 
-    // Note: Exact byte counting for Vercel Blob requires Vercel API.
-    // For now, we estimate based on document count.
-    const estimatedBytesPerDoc = 500 * 1024; // Estimate 500KB per document
-    const usedBytes = fileCount * estimatedBytesPerDoc;
+    let usedBytes = 0;
+    const fileCount = documents.length;
+
+    // Calculate actual blob sizes (with fallback to estimate)
+    const sizePromises = documents.map(async (doc) => {
+      if (isBlobUrl(doc.pdfFilename)) {
+        return getBlobSize(doc.pdfFilename);
+      }
+      return 500 * 1024; // Fallback estimate 500KB
+    });
+
+    const sizes = await Promise.all(sizePromises);
+    usedBytes = sizes.reduce((sum, size) => sum + size, 0);
 
     return NextResponse.json({
       usedBytes,

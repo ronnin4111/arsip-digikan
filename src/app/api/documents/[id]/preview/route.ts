@@ -41,7 +41,7 @@ export async function GET(
       return NextResponse.json({ error: 'Dokumen tidak ditemukan' }, { status: 404 });
     }
 
-    // If it's a blob URL, redirect to it directly
+    // If it's a blob URL, redirect to it directly (public blobs are accessible)
     if (isBlobUrl(document.pdfFilename)) {
       return NextResponse.redirect(document.pdfFilename);
     }

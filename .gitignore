@@ -66,3 +66,7 @@ prompt
 
 # Skills directory
 /skills/
+.agents/
+agent/
+skills-lock.json
+.env.local
