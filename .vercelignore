@@ -1,0 +1,22 @@
+# Sandbox artifacts
+agent/
+.agents/
+db/
+download/
+mini-services/
+skills/
+tool-results/
+uploads/
+upload/
+examples/
+node_modules/
+.dev
+.env
+.env.local
+.claude
+.z-ai-config
+skills-lock.json
+worklog.md
+dev.log
+dev.out.log
+server.log

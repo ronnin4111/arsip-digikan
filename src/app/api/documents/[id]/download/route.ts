@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { verifyToken } from '@/lib/auth';
+import { verifyToken, JwtPayload } from '@/lib/auth';
 import { isBlobUrl } from '@/lib/blob';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  let authUser = null;
+  let authUser: JwtPayload | null = null;
 
   const authHeader = request.headers.get('authorization');
   if (authHeader) {
