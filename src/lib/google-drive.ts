@@ -207,10 +207,19 @@ export async function getDriveStorageInfo(): Promise<{ usedBytes: number; limitB
 
   const data = response.data as Record<string, unknown>;
   const quota = (data.storageQuota || {}) as Record<string, string>;
-  return {
-    usedBytes: parseInt(quota.usage || '0', 10),
-    limitBytes: parseInt(quota.limit || '16106127360', 10), // Default 15GB
-  };
+  
+  // Service Accounts may not have storageQuota.limit (it uses the owner's quota)
+  // If limit is 0 or not available, default to 15GB (Google Drive free tier)
+  const usedBytes = parseInt(quota.usage || '0', 10);
+  let limitBytes = parseInt(quota.limit || '0', 10);
+  
+  if (!limitBytes || limitBytes === 0) {
+    // Service Account shares the owner's Google Drive quota
+    // Default to 15GB (Google Drive free tier)
+    limitBytes = 15 * 1024 * 1024 * 1024; // 15 GB
+  }
+  
+  return { usedBytes, limitBytes };
 }
 
 /**
