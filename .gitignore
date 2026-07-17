@@ -70,3 +70,5 @@ prompt
 agent/
 skills-lock.json
 .env.local
+upload/
+GOOGLE-DRIVE-SETUP.md
