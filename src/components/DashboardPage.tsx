@@ -19,7 +19,6 @@ import {
   History,
   Users,
   HardDrive,
-  AlertTriangle,
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -50,7 +49,6 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
 
   const [editUserId, setEditUserId] = useState<number | null>(null);
   const [storageUsage, setStorageUsage] = useState<StorageUsage | null>(null);
-  const [driveStatus, setDriveStatus] = useState<{ configured: boolean; working: boolean; message: string; setupSteps?: string[]; folderName?: string } | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Fetch documents and storage when filters change
@@ -82,18 +80,6 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
       .then(data => { if (data) setStorageUsage(data); })
       .catch(() => {});
   }, [token, refreshKey]);
-
-  // Check Google Drive status (only for admin users, once on mount)
-  useEffect(() => {
-    if (!token || user?.role !== 'admin') return;
-
-    fetch(`/api/drive-status`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(res => res.ok ? res.json() : null)
-      .then(data => { if (data) setDriveStatus(data); })
-      .catch(() => {});
-  }, [token, user?.role]);
 
   const refreshData = () => setRefreshKey(k => k + 1);
 
@@ -298,33 +284,6 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
       {/* Main Content */}
       <main className="flex-1 p-4 sm:p-6">
         <div className="max-w-7xl mx-auto space-y-6">
-          {/* Google Drive Setup Warning */}
-          {driveStatus && driveStatus.configured && !driveStatus.working && (
-            <div className="bg-amber-50 border border-amber-200 rounded-none p-4">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-bold text-amber-800 mb-1">
-                    Google Drive Perlu Konfigurasi Shared Drive
-                  </h3>
-                  <p className="text-xs text-amber-700 mb-2">
-                    {driveStatus.message}
-                  </p>
-                  {driveStatus.setupSteps && (
-                    <ol className="text-xs text-amber-700 space-y-1 list-decimal list-inside">
-                      {driveStatus.setupSteps.map((step, i) => (
-                        <li key={i}>{step}</li>
-                      ))}
-                    </ol>
-                  )}
-                  <p className="text-xs text-amber-600 mt-2">
-                    Sementara ini, unggahan file akan menggunakan Vercel Blob (kapasitas 250MB).
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
             <Card className="rounded-none border-slate-200">
