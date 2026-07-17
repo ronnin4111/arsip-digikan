@@ -5,7 +5,7 @@ export { isGoogleDriveConfigured, isGoogleDriveFileId } from './google-drive';
 
 /**
  * Upload a PDF file to storage (Google Drive or Vercel Blob)
- * Uses dynamic imports for Google Drive to avoid loading googleapis eagerly.
+ * Tries Google Drive first, falls back to Vercel Blob if Google Drive fails.
  *
  * @param filename - The name for the file
  * @param buffer - The file content as a Buffer
@@ -16,8 +16,18 @@ export async function uploadPdf(filename: string, buffer: Buffer): Promise<strin
   const { isGoogleDriveConfigured, uploadToDrive } = await import('./google-drive');
 
   if (isGoogleDriveConfigured()) {
-    // Upload to Google Drive - return the file ID
-    return uploadToDrive(filename, buffer);
+    try {
+      // Try uploading to Google Drive first
+      return await uploadToDrive(filename, buffer);
+    } catch (error: unknown) {
+      // If Google Drive upload fails (e.g., Service Account quota issue),
+      // fall back to Vercel Blob
+      const gerr = error as { code?: number; message?: string };
+      console.warn(
+        `Google Drive upload failed (code: ${gerr.code}): ${gerr.message || 'Unknown error'}. Falling back to Vercel Blob.`
+      );
+      // Fall through to Vercel Blob
+    }
   }
 
   // Fallback: Upload to Vercel Blob

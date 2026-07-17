@@ -6,12 +6,17 @@
  * to avoid loading the heavy module when it's not needed.
  * Only routes that actually use Google Drive APIs will load the module.
  *
+ * IMPORTANT: Service Accounts do NOT have storage quota.
+ * You MUST use a Shared Drive (formerly Team Drive) for uploads.
+ *
  * Setup:
  * 1. Go to Google Cloud Console → Create Project
  * 2. Enable Google Drive API
  * 3. Create Service Account → Download JSON key
- * 4. Share a Google Drive folder with the service account email
- * 5. Set the folder ID in GOOGLE_DRIVE_FOLDER_ID env var
+ * 4. Create a Shared Drive in Google Drive
+ * 5. Add the service account email as a Contributor/Content manager to the Shared Drive
+ * 6. Create a folder inside the Shared Drive (or use the Shared Drive root)
+ * 7. Set the folder/drive ID in GOOGLE_DRIVE_FOLDER_ID env var
  */
 
 // Types for lazy-loaded modules
@@ -95,6 +100,10 @@ export function isGoogleDriveFileId(value: string): boolean {
 
 /**
  * Upload a PDF file to Google Drive
+ *
+ * Service Accounts don't have storage quota, so files MUST be uploaded
+ * to a Shared Drive. The supportsAllDrives parameter is set to true.
+ *
  * @param filename - The name for the file in Google Drive
  * @param buffer - The file content as a Buffer
  * @returns The Google Drive file ID
@@ -102,6 +111,10 @@ export function isGoogleDriveFileId(value: string): boolean {
 export async function uploadToDrive(filename: string, buffer: Buffer): Promise<string> {
   const drive = await getDrive();
   const folderId = getFolderId();
+
+  // Convert Buffer to Readable stream (googleapis requires a stream for media.body)
+  const { Readable } = await import('stream');
+  const stream = Readable.from(buffer);
 
   const response = await drive.files.create({
     requestBody: {
@@ -111,9 +124,11 @@ export async function uploadToDrive(filename: string, buffer: Buffer): Promise<s
     },
     media: {
       mimeType: 'application/pdf',
-      body: buffer,
+      body: stream,
     },
     fields: 'id',
+    // Required for Shared Drives - Service Accounts don't have their own quota
+    supportsAllDrives: true,
   });
 
   if (!response.data.id) {
@@ -129,7 +144,10 @@ export async function uploadToDrive(filename: string, buffer: Buffer): Promise<s
  */
 export async function deleteFromDrive(fileId: string): Promise<void> {
   const drive = await getDrive();
-  await drive.files.delete({ fileId });
+  await drive.files.delete({
+    fileId,
+    supportsAllDrives: true,
+  });
 }
 
 /**
@@ -142,6 +160,7 @@ export async function getFileInfo(fileId: string): Promise<{ size: number; name:
     const response = await drive.files.get({
       fileId,
       fields: 'size,name,mimeType',
+      supportsAllDrives: true,
     });
     const data = response.data as Record<string, unknown>;
     return {
@@ -172,6 +191,7 @@ export async function getFileViewLink(fileId: string): Promise<string> {
         role: 'reader',
         type: 'anyone',
       },
+      supportsAllDrives: true,
     });
   } catch {
     // Permission might already exist, that's fine
@@ -197,6 +217,7 @@ export async function getFileDownloadUrl(fileId: string): Promise<string> {
         role: 'reader',
         type: 'anyone',
       },
+      supportsAllDrives: true,
     });
   } catch {
     // Permission might already exist
@@ -214,7 +235,11 @@ export async function downloadFromDrive(fileId: string): Promise<Buffer> {
   const drive = await getDrive();
 
   const response = await drive.files.get(
-    { fileId, alt: 'media' },
+    {
+      fileId,
+      alt: 'media',
+      supportsAllDrives: true,
+    },
     { responseType: 'arraybuffer' }
   );
 
@@ -260,6 +285,8 @@ export async function listDriveFiles(): Promise<Array<{ id: string; name: string
     q: `'${folderId}' in parents and trashed = false`,
     fields: 'files(id, name, size)',
     pageSize: 1000,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
   });
 
   const files = (response.data.files || []) as Array<Record<string, string>>;
