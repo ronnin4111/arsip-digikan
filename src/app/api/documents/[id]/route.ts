@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getAuthUser } from '@/lib/auth';
-import { deletePdf, isBlobUrl } from '@/lib/blob';
+import { deletePdf, isBlobUrl, isGoogleDriveFileId } from '@/lib/blob';
 
 function transformDoc(doc: any) {
   return {
@@ -99,12 +99,12 @@ export async function DELETE(
       return NextResponse.json({ error: 'Dokumen tidak ditemukan' }, { status: 404 });
     }
 
-    // Delete PDF from Vercel Blob (if it's a blob URL)
-    if (isBlobUrl(existing.pdfFilename)) {
+    // Delete PDF from storage (Google Drive or Vercel Blob)
+    if (isGoogleDriveFileId(existing.pdfFilename) || isBlobUrl(existing.pdfFilename)) {
       try {
         await deletePdf(existing.pdfFilename);
       } catch (e) {
-        console.error('Failed to delete blob:', e);
+        console.error('Failed to delete file from storage:', e);
       }
     }
 

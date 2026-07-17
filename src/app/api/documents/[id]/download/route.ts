@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyToken, JwtPayload } from '@/lib/auth';
-import { isBlobUrl } from '@/lib/blob';
+import { isBlobUrl, isGoogleDriveFileId, getDownloadUrl } from '@/lib/blob';
 
 export async function GET(
   request: NextRequest,
@@ -41,8 +41,20 @@ export async function GET(
       return NextResponse.json({ error: 'Dokumen tidak ditemukan' }, { status: 404 });
     }
 
-    if (isBlobUrl(document.pdfFilename)) {
-      return NextResponse.redirect(document.pdfFilename);
+    const pdfRef = document.pdfFilename;
+
+    // Google Drive file ID → redirect to download URL
+    if (isGoogleDriveFileId(pdfRef)) {
+      const downloadUrl = await getDownloadUrl(pdfRef);
+      if (downloadUrl) {
+        return NextResponse.redirect(downloadUrl);
+      }
+      return NextResponse.json({ error: 'Gagal membuat link unduhan' }, { status: 500 });
+    }
+
+    // Vercel Blob URL → redirect directly
+    if (isBlobUrl(pdfRef)) {
+      return NextResponse.redirect(pdfRef);
     }
 
     return NextResponse.json({ error: 'File PDF tidak ditemukan' }, { status: 404 });

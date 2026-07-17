@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyToken, JwtPayload } from '@/lib/auth';
-import { isBlobUrl } from '@/lib/blob';
+import { isBlobUrl, isGoogleDriveFileId, getPreviewUrl } from '@/lib/blob';
 
 export async function GET(
   request: NextRequest,
@@ -41,12 +41,22 @@ export async function GET(
       return NextResponse.json({ error: 'Dokumen tidak ditemukan' }, { status: 404 });
     }
 
-    // If it's a blob URL, redirect to it directly (public blobs are accessible)
-    if (isBlobUrl(document.pdfFilename)) {
-      return NextResponse.redirect(document.pdfFilename);
+    const pdfRef = document.pdfFilename;
+
+    // Google Drive file ID → redirect to Google Drive preview
+    if (isGoogleDriveFileId(pdfRef)) {
+      const previewUrl = await getPreviewUrl(pdfRef);
+      if (previewUrl) {
+        return NextResponse.redirect(previewUrl);
+      }
+      return NextResponse.json({ error: 'Gagal membuat link pratinjau' }, { status: 500 });
     }
 
-    // Fallback: return error for local files (shouldn't happen in production)
+    // Vercel Blob URL → redirect directly
+    if (isBlobUrl(pdfRef)) {
+      return NextResponse.redirect(pdfRef);
+    }
+
     return NextResponse.json({ error: 'File PDF tidak ditemukan' }, { status: 404 });
   } catch (error) {
     console.error('Preview document error:', error);

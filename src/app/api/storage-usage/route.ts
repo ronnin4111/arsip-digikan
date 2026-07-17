@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getAuthUser } from '@/lib/auth';
-import { isBlobUrl, getBlobSize } from '@/lib/blob';
-
-const LIMIT_BYTES = 100 * 1024 * 1024; // 100MB
+import { getFileSize, getStorageUsage, isGoogleDriveFileId, isBlobUrl } from '@/lib/blob';
+import { isGoogleDriveConfigured } from '@/lib/google-drive';
 
 export async function GET(request: NextRequest) {
   const authUser = getAuthUser(request);
@@ -16,13 +15,30 @@ export async function GET(request: NextRequest) {
       select: { pdfFilename: true },
     });
 
-    let usedBytes = 0;
     const fileCount = documents.length;
 
-    // Calculate actual blob sizes (with fallback to estimate)
+    // If Google Drive is configured, use Drive storage info
+    if (isGoogleDriveConfigured()) {
+      try {
+        const driveInfo = await getStorageUsage();
+        return NextResponse.json({
+          usedBytes: driveInfo.usedBytes,
+          limitBytes: driveInfo.limitBytes,
+          fileCount,
+          storageType: 'google-drive',
+        });
+      } catch (error) {
+        console.error('Failed to get Google Drive storage info:', error);
+        // Fall through to calculate from individual files
+      }
+    }
+
+    // Calculate actual sizes from blob/drive files
+    let usedBytes = 0;
     const sizePromises = documents.map(async (doc) => {
-      if (isBlobUrl(doc.pdfFilename)) {
-        return getBlobSize(doc.pdfFilename);
+      const ref = doc.pdfFilename;
+      if (isGoogleDriveFileId(ref) || isBlobUrl(ref)) {
+        return getFileSize(ref);
       }
       return 500 * 1024; // Fallback estimate 500KB
     });
@@ -30,10 +46,15 @@ export async function GET(request: NextRequest) {
     const sizes = await Promise.all(sizePromises);
     usedBytes = sizes.reduce((sum, size) => sum + size, 0);
 
+    const limitBytes = isGoogleDriveConfigured()
+      ? 15 * 1024 * 1024 * 1024 // 15 GB for Google Drive
+      : 250 * 1024 * 1024; // 250 MB for Vercel Blob
+
     return NextResponse.json({
       usedBytes,
-      limitBytes: LIMIT_BYTES,
+      limitBytes,
       fileCount,
+      storageType: isGoogleDriveConfigured() ? 'google-drive' : 'vercel-blob',
     });
   } catch (error) {
     console.error('Storage usage error:', error);

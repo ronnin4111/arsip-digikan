@@ -33,4 +33,5 @@ export interface StorageUsage {
   usedBytes: number;
   limitBytes: number;
   fileCount: number;
+  storageType?: 'google-drive' | 'vercel-blob';
 }

@@ -360,6 +360,16 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
               <div className="flex justify-between items-center mb-2">
                 <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
                   Penggunaan Penyimpanan
+                  {storageUsage.storageType === 'google-drive' && (
+                    <span className="ml-2 text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold">
+                      GOOGLE DRIVE
+                    </span>
+                  )}
+                  {storageUsage.storageType === 'vercel-blob' && (
+                    <span className="ml-2 text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">
+                      VERCEL BLOB
+                    </span>
+                  )}
                 </span>
                 <span className="text-xs text-slate-500">
                   {formatBytes(storageUsage.usedBytes)} / {formatBytes(storageUsage.limitBytes)} (
