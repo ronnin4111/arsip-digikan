@@ -1,0 +1,52 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  username     String    @unique
+  passwordHash String    @map("password_hash")
+  role         String    @default("user")
+  documents    Document[]
+  logs         Log[]
+
+  @@map("users")
+}
+
+model Document {
+  id             Int      @id @default(autoincrement())
+  type           String   // INCOMING or OUTGOING
+  title          String
+  referenceNumber String  @map("reference_number")
+  category       String
+  sender         String   @default("")
+  recipient      String   @default("")
+  date           String
+  pdfFilename    String   @map("pdf_filename")
+  seksi          String   @default("")
+  createdAt      DateTime @default(now()) @map("created_at")
+  createdBy      Int?     @map("created_by")
+  user           User?    @relation(fields: [createdBy], references: [id])
+  logs           Log[]
+
+  @@map("documents")
+}
+
+model Log {
+  id            Int      @id @default(autoincrement())
+  action        String
+  documentId    Int?     @map("document_id")
+  documentTitle String?  @map("document_title")
+  userId        Int?     @map("user_id")
+  username      String?
+  timestamp     DateTime @default(now())
+  user          User?    @relation(fields: [userId], references: [id])
+  document      Document? @relation(fields: [documentId], references: [id])
+
+  @@map("logs")
+}

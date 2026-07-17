@@ -1,0 +1,742 @@
+     1→     1→import React, { useState, useEffect } from 'react';
+     2→     2→import { useAuth } from '../components/AuthContext';
+     3→     3→import { Document } from '../types';
+     4→     4→import { Card, CardContent } from '../components/ui/card';
+     5→     5→import { Input } from '../components/ui/input';
+     6→     6→import { Button } from '../components/ui/button';
+     7→     7→import { Search, LogOut, FileText, Download, Trash2, Plus, Eye, X, Edit, History, Users } from 'lucide-react';
+     8→     8→import { format } from 'date-fns';
+     9→     9→
+    10→    10→interface DashboardProps {
+    11→    11→  onAddDocument: () => void;
+    12→    12→}
+    13→    13→
+    14→    14→export default function Dashboard({ onAddDocument }: DashboardProps) {
+    15→    15→  const { user, token, logout } = useAuth();
+    16→    16→  const [documents, setDocuments] = useState<Document[]>([]);
+    17→    17→  const [logs, setLogs] = useState<any[]>([]);
+    18→    18→  const [usersList, setUsersList] = useState<any[]>([]);
+    19→    19→  const [search, setSearch] = useState('');
+    20→    20→  const [typeFilter, setTypeFilter] = useState('');
+    21→    21→  const [categoryFilter, setCategoryFilter] = useState('');
+    22→    22→  const [dateFilter, setDateFilter] = useState('');
+    23→    23→  const [seksiFilter, setSeksiFilter] = useState('');
+    24→    24→  
+    25→    25→  const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
+    26→    26→  const [editDoc, setEditDoc] = useState<Document | null>(null);
+    27→    27→  const [showLogs, setShowLogs] = useState(false);
+    28→    28→  const [showUsers, setShowUsers] = useState(false);
+    29→    29→  
+    30→    30→  const [newUserUsername, setNewUserUsername] = useState('');
+    31→    31→  const [newUserPassword, setNewUserPassword] = useState('');
+    32→    32→  const [newUserRole, setNewUserRole] = useState('user');
+    33→    33→  const [userError, setUserError] = useState('');
+    34→    34→  
+    35→    35→  const [editUserId, setEditUserId] = useState<number | null>(null);
+    36→    36→  const [storageUsage, setStorageUsage] = useState<{ usedBytes: number; limitBytes: number; fileCount: number } | null>(null);
+    37→    37→
+    38→    38→  const fetchStorageUsage = async () => {
+    39→    39→    try {
+    40→    40→      const res = await fetch(`/api/storage-usage`, {
+    41→    41→        headers: { Authorization: `Bearer ${token}` }
+    42→    42→      });
+    43→    43→      if (res.ok) {
+    44→    44→        const data = await res.json();
+    45→    45→        setStorageUsage(data);
+    46→    46→      }
+    47→    47→    } catch (err) {
+    48→    48→      console.error(err);
+    49→    49→    }
+    50→    50→  };
+    51→    51→
+    52→    52→  const fetchDocuments = async () => {
+    53→    53→    try {
+    54→    54→      const params = new URLSearchParams();
+    55→    55→      if (search) params.append('q', search);
+    56→    56→      if (typeFilter) params.append('type', typeFilter);
+    57→    57→      if (categoryFilter) params.append('category', categoryFilter);
+    58→    58→      if (dateFilter) params.append('date', dateFilter);
+    59→    59→      if (seksiFilter) params.append('seksi', seksiFilter);
+    60→    60→
+    61→    61→      const res = await fetch(`/api/documents?${params.toString()}`, {
+    62→    62→        headers: { Authorization: `Bearer ${token}` }
+    63→    63→      });
+    64→    64→      if (res.ok) {
+    65→    65→        const data = await res.json();
+    66→    66→        setDocuments(data);
+    67→    67→      }
+    68→    68→    } catch (err) {
+    69→    69→      console.error(err);
+    70→    70→    }
+    71→    71→  };
+    72→    72→
+    73→    73→  const fetchLogs = async () => {
+    74→    74→    try {
+    75→    75→      const res = await fetch(`/api/logs`, {
+    76→    76→        headers: { Authorization: `Bearer ${token}` }
+    77→    77→      });
+    78→    78→      if (res.ok) {
+    79→    79→        const data = await res.json();
+    80→    80→        setLogs(data);
+    81→    81→      }
+    82→    82→    } catch (err) {
+    83→    83→      console.error(err);
+    84→    84→    }
+    85→    85→  };
+    86→    86→
+    87→    87→  const fetchUsersList = async () => {
+    88→    88→    try {
+    89→    89→      const res = await fetch(`/api/users`, {
+    90→    90→        headers: { Authorization: `Bearer ${token}` }
+    91→    91→      });
+    92→    92→      if (res.ok) {
+    93→    93→        const data = await res.json();
+    94→    94→        setUsersList(data);
+    95→    95→      }
+    96→    96→    } catch (err) {
+    97→    97→      console.error(err);
+    98→    98→    }
+    99→    99→  };
+   100→   100→
+   101→   101→  const handleAddUser = async (e: React.FormEvent) => {
+   102→   102→    e.preventDefault();
+   103→   103→    setUserError('');
+   104→   104→    
+   105→   105→    try {
+   106→   106→      const method = editUserId ? 'PUT' : 'POST';
+   107→   107→      const url = editUserId ? `/api/users/${editUserId}` : `/api/users`;
+   108→   108→      
+   109→   109→      const res = await fetch(url, {
+   110→   110→        method,
+   111→   111→        headers: { 
+   112→   112→          'Content-Type': 'application/json',
+   113→   113→          Authorization: `Bearer ${token}` 
+   114→   114→        },
+   115→   115→        body: JSON.stringify({
+   116→   116→          username: newUserUsername,
+   117→   117→          password: newUserPassword,
+   118→   118→          role: newUserRole
+   119→   119→        })
+   120→   120→      });
+   121→   121→      
+   122→   122→      if (res.ok) {
+   123→   123→        setNewUserUsername('');
+   124→   124→        setNewUserPassword('');
+   125→   125→        setNewUserRole('user');
+   126→   126→        setEditUserId(null);
+   127→   127→        fetchUsersList();
+   128→   128→      } else {
+   129→   129→        const data = await res.json();
+   130→   130→        setUserError(data.error || 'Gagal menyimpan pengguna');
+   131→   131→      }
+   132→   132→    } catch (err) {
+   133→   133→      setUserError('Gagal menyimpan pengguna');
+   134→   134→    }
+   135→   135→  };
+   136→   136→
+   137→   137→  const handleEditUserClick = (u: any) => {
+   138→   138→    setEditUserId(u.id);
+   139→   139→    setNewUserUsername(u.username);
+   140→   140→    setNewUserPassword('');
+   141→   141→    setNewUserRole(u.role);
+   142→   142→    setUserError('');
+   143→   143→  };
+   144→   144→
+   145→   145→  const handleCancelEditUser = () => {
+   146→   146→    setEditUserId(null);
+   147→   147→    setNewUserUsername('');
+   148→   148→    setNewUserPassword('');
+   149→   149→    setNewUserRole('user');
+   150→   150→    setUserError('');
+   151→   151→  };
+   152→   152→
+   153→   153→  const handleDeleteUser = async (id: number) => {
+   154→   154→    if (!confirm('Apakah Anda yakin ingin menghapus pengguna ini?')) return;
+   155→   155→    try {
+   156→   156→      const res = await fetch(`/api/users/${id}`, {
+   157→   157→        method: 'DELETE',
+   158→   158→        headers: { Authorization: `Bearer ${token}` }
+   159→   159→      });
+   160→   160→      if (res.ok) {
+   161→   161→        fetchUsersList();
+   162→   162→      } else {
+   163→   163→        const data = await res.json();
+   164→   164→        alert(data.error || 'Gagal menghapus pengguna');
+   165→   165→      }
+   166→   166→    } catch (err) {
+   167→   167→      console.error(err);
+   168→   168→      alert('Gagal menghapus pengguna');
+   169→   169→    }
+   170→   170→  };
+   171→   171→
+   172→   172→  useEffect(() => {
+   173→   173→    fetchDocuments();
+   174→   174→    fetchStorageUsage();
+   175→   175→  }, [search, typeFilter, categoryFilter, dateFilter, seksiFilter]);
+   176→   176→
+   177→   177→  const handleDelete = async (id: number) => {
+   178→   178→    if (!confirm('Apakah Anda yakin ingin menghapus dokumen ini?')) return;
+   179→   179→    try {
+   180→   180→      const res = await fetch(`/api/documents/${id}`, {
+   181→   181→        method: 'DELETE',
+   182→   182→        headers: { Authorization: `Bearer ${token}` }
+   183→   183→      });
+   184→   184→      if (res.ok) {
+   185→   185→        fetchDocuments();
+   186→   186→        fetchStorageUsage();
+   187→   187→      }
+   188→   188→    } catch (err) {
+   189→   189→      console.error(err);
+   190→   190→    }
+   191→   191→  };
+   192→   192→
+   193→   193→  const handleEditSubmit = async (e: React.FormEvent) => {
+   194→   194→    e.preventDefault();
+   195→   195→    if (!editDoc) return;
+   196→   196→    
+   197→   197→    try {
+   198→   198→      const res = await fetch(`/api/documents/${editDoc.id}`, {
+   199→   199→        method: 'PUT',
+   200→   200→        headers: { 
+   201→   201→          'Content-Type': 'application/json',
+   202→   202→          Authorization: `Bearer ${token}` 
+   203→   203→        },
+   204→   204→        body: JSON.stringify(editDoc)
+   205→   205→      });
+   206→   206→      
+   207→   207→      if (res.ok) {
+   208→   208→        setEditDoc(null);
+   209→   209→        fetchDocuments();
+   210→   210→      } else {
+   211→   211→        const data = await res.json();
+   212→   212→        alert(data.error || 'Gagal menyimpan perubahan');
+   213→   213→      }
+   214→   214→    } catch (err) {
+   215→   215→      console.error(err);
+   216→   216→      alert('Gagal menyimpan perubahan');
+   217→   217→    }
+   218→   218→  };
+   219→   219→
+   220→   220→  return (
+   221→   221→    <div className="min-h-screen bg-[#F1F5F9] font-sans flex flex-col">
+   222→   222→      {/* Navbar */}
+   223→   223→      <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 sticky top-0 z-10">
+   224→   224→        <div className="flex items-center gap-3">
+   225→   225→          <div className="w-8 h-8 bg-blue-600 flex items-center justify-center rounded-none">
+   226→   226→            <FileText className="w-5 h-5 text-white" />
+   227→   227→          </div>
+   228→   228→          <h1 className="font-bold text-xl tracking-tight text-slate-900">ARSIP-<span className="font-light">DIGIKAN</span></h1>
+   229→   229→        </div>
+   230→   230→        <div className="flex items-center gap-4">
+   231→   231→          {user?.role === 'admin' && (
+   232→   232→            <Button variant="outline" size="sm" onClick={() => { setShowUsers(true); fetchUsersList(); }} className="text-xs font-bold text-slate-600">
+   233→   233→              <Users className="w-4 h-4 mr-2" />
+   234→   234→              Manajemen Pengguna
+   235→   235→            </Button>
+   236→   236→          )}
+   237→   237→          <Button variant="outline" size="sm" onClick={() => { setShowLogs(true); fetchLogs(); }} className="text-xs font-bold text-slate-600">
+   238→   238→            <History className="w-4 h-4 mr-2" />
+   239→   239→            Log Aktivitas
+   240→   240→          </Button>
+   241→   241→          <div className="text-right">
+   242→   242→            <p className="text-sm font-semibold leading-none">{user?.username}</p>
+   243→   243→            <p className="text-xs text-slate-500">Administrator</p>
+   244→   244→          </div>
+   245→   245→          <div className="w-10 h-10 bg-slate-200 border border-slate-300 flex items-center justify-center">
+   246→   246→            <Button variant="ghost" size="icon" onClick={logout} title="Keluar" className="w-full h-full rounded-none hover:bg-slate-300">
+   247→   247→              <LogOut className="w-5 h-5 text-slate-700" />
+   248→   248→            </Button>
+   249→   249→          </div>
+   250→   250→        </div>
+   251→   251→      </header>
+   252→   252→
+   253→   253→      <main className="max-w-7xl mx-auto w-full px-6 py-6 flex-1 flex flex-col">
+   254→   254→        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+   255→   255→          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Daftar Dokumen</h2>
+   256→   256→          <Button onClick={onAddDocument} className="font-bold uppercase tracking-widest text-xs px-6">
+   257→   257→            <Plus className="w-4 h-4 mr-2" />
+   258→   258→            Unggah PDF
+   259→   259→          </Button>
+   260→   260→        </div>
+   261→   261→
+   262→   262→        {storageUsage && (
+   263→   263→          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 animate-fade-in">
+   264→   264→            <div className="bg-white border border-slate-200 p-4 shadow-sm flex items-center justify-between">
+   265→   265→              <div>
+   266→   266→                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Dokumen</p>
+   267→   267→                <p className="text-2xl font-bold text-slate-800 mt-1">{storageUsage.fileCount} berkas</p>
+   268→   268→              </div>
+   269→   269→              <div className="p-3 bg-blue-50 text-blue-600 rounded-none">
+   270→   270→                <FileText className="w-6 h-6" />
+   271→   271→              </div>
+   272→   272→            </div>
+   273→   273→
+   274→   274→            <div className="bg-white border border-slate-200 p-4 shadow-sm md:col-span-2 flex flex-col justify-between">
+   275→   275→              <div className="flex justify-between items-center mb-2">
+   276→   276→                <div>
+   277→   277→                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Kapasitas Penyimpanan Server</p>
+   278→   278→                  <p className="text-sm font-medium text-slate-600 mt-1">
+   279→   279→                    {(storageUsage.usedBytes / (1024 * 1024)).toFixed(2)} MB dari {(storageUsage.limitBytes / (1024 * 1024)).toFixed(0)} MB digunakan
+   280→   280→                  </p>
+   281→   281→                </div>
+   282→   282→                <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1">
+   283→   283→                  {((storageUsage.usedBytes / storageUsage.limitBytes) * 100).toFixed(1)}% Terisi
+   284→   284→                </span>
+   285→   285→              </div>
+   286→   286→              <div className="w-full bg-slate-100 h-2 rounded-none overflow-hidden">
+   287→   287→                <div 
+   288→   288→                  className="bg-blue-600 h-full transition-all duration-500" 
+   289→   289→                  style={{ width: `${Math.min(100, (storageUsage.usedBytes / storageUsage.limitBytes) * 100)}%` }}
+   290→   290→                />
+   291→   291→              </div>
+   292→   292→            </div>
+   293→   293→          </div>
+   294→   294→        )}
+   295→   295→
+   296→   296→        <div className="mb-6 flex flex-col xl:flex-row gap-4 bg-white p-4 border border-slate-200 shadow-sm">
+   297→   297→          <div className="relative flex-1">
+   298→   298→            <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+   299→   299→              <Search className="w-4 h-4 text-slate-400" />
+   300→   300→            </span>
+   301→   301→            <input 
+   302→   302→              type="text"
+   303→   303→              placeholder="Cari nomor surat, perihal, atau kategori..." 
+   304→   304→              className="w-full bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 py-2 pl-10 pr-4 text-sm outline-none transition-all h-[36px]"
+   305→   305→              value={search}
+   306→   306→              onChange={(e) => setSearch(e.target.value)}
+   307→   307→            />
+   308→   308→          </div>
+   309→   309→          <div className="flex flex-wrap gap-4">
+   310→   310→            <select 
+   311→   311→              className="h-[36px] bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 px-3 text-sm outline-none transition-all"
+   312→   312→              value={typeFilter}
+   313→   313→              onChange={(e) => setTypeFilter(e.target.value)}
+   314→   314→            >
+   315→   315→              <option value="">Semua Tipe</option>
+   316→   316→              <option value="INCOMING">Surat Masuk</option>
+   317→   317→              <option value="OUTGOING">Surat Keluar</option>
+   318→   318→            </select>
+   319→   319→            <input 
+   320→   320→              list="filter-categories"
+   321→   321→              placeholder="Semua Kategori"
+   322→   322→              className="h-[36px] bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 px-3 text-sm outline-none transition-all w-32"
+   323→   323→              value={categoryFilter}
+   324→   324→              onChange={(e) => setCategoryFilter(e.target.value)}
+   325→   325→            />
+   326→   326→            <datalist id="filter-categories">
+   327→   327→              <option value="Segera" />
+   328→   328→              <option value="Penting" />
+   329→   329→              <option value="Biasa" />
+   330→   330→              <option value="Rahasia" />
+   331→   331→            </datalist>
+   332→   332→            <select 
+   333→   333→              className="h-[36px] bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 px-3 text-sm outline-none transition-all max-w-[160px]"
+   334→   334→              value={seksiFilter}
+   335→   335→              onChange={(e) => setSeksiFilter(e.target.value)}
+   336→   336→            >
+   337→   337→              <option value="">Semua Seksi</option>
+   338→   338→              <option value="Perikanan Budidaya">Perikanan Budidaya</option>
+   339→   339→              <option value="Perikanan Tangkap">Perikanan Tangkap</option>
+   340→   340→              <option value="Seksi Pengolahan dan Pemasaran ikan">Seksi Pengolahan dan Pemasaran ikan</option>
+   341→   341→            </select>
+   342→   342→            <input 
+   343→   343→              type="date"
+   344→   344→              className="h-[36px] bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 px-3 text-sm outline-none transition-all"
+   345→   345→              value={dateFilter}
+   346→   346→              onChange={(e) => setDateFilter(e.target.value)}
+   347→   347→              title="Filter Tanggal"
+   348→   348→            />
+   349→   349→          </div>
+   350→   350→        </div>
+   351→   351→
+   352→   352→        <div className="bg-white border border-slate-200 flex-1 flex flex-col shadow-sm">
+   353→   353→          <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+   354→   354→            <h3 className="font-bold text-slate-800">Arsip Terbaru</h3>
+   355→   355→          </div>
+   356→   356→          <div className="flex-1 overflow-x-auto">
+   357→   357→            <table className="w-full text-left text-sm text-slate-600">
+   358→   358→              <thead>
+   359→   359→                <tr className="text-slate-400 font-bold uppercase text-[10px] border-b border-slate-100">
+   360→   360→                  <th className="px-4 py-3">No. Ref</th>
+   361→   361→                  <th className="px-4 py-3">Judul</th>
+   362→   362→                  <th className="px-4 py-3">Tipe</th>
+   363→   363→                  <th className="px-4 py-3">Kategori</th>
+   364→   364→                  <th className="px-4 py-3">Seksi Bidang</th>
+   365→   365→                  <th className="px-4 py-3">Tanggal</th>
+   366→   366→                  <th className="px-4 py-3 text-right">Aksi</th>
+   367→   367→                </tr>
+   368→   368→              </thead>
+   369→   369→              <tbody className="divide-y divide-slate-50">
+   370→   370→                {documents.length === 0 ? (
+   371→   371→                  <tr>
+   372→   372→                    <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+   373→   373→                      Tidak ada dokumen ditemukan.
+   374→   374→                    </td>
+   375→   375→                  </tr>
+   376→   376→                ) : (
+   377→   377→                  documents.map((doc) => (
+   378→   378→                    <tr key={doc.id} className="hover:bg-slate-50/80 transition-colors">
+   379→   379→                      <td className="px-4 py-3 font-mono text-xs font-medium text-blue-600">{doc.reference_number}</td>
+   380→   380→                      <td className="px-4 py-3 text-slate-700">{doc.title}</td>
+   381→   381→                      <td className="px-4 py-3">
+   382→   382→                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-sm uppercase ${
+   383→   383→                          doc.type === 'INCOMING' ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'
+   384→   384→                        }`}>
+   385→   385→                          {doc.type === 'INCOMING' ? 'MASUK' : 'KELUAR'}
+   386→   386→                        </span>
+   387→   387→                      </td>
+   388→   388→                      <td className="px-4 py-3">
+   389→   389→                        <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-sm uppercase">
+   390→   390→                          {doc.category}
+   391→   391→                        </span>
+   392→   392→                      </td>
+   393→   393→                      <td className="px-4 py-3 text-xs text-slate-600">
+   394→   394→                        {doc.seksi}
+   395→   395→                      </td>
+   396→   396→                      <td className="px-4 py-3 font-mono text-xs text-slate-500">
+   397→   397→                        {format(new Date(doc.date), 'dd/MM/yyyy')}
+   398→   398→                      </td>
+   399→   399→                      <td className="px-4 py-3 text-right space-x-1">
+   400→   400→                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-blue-600" onClick={() => setPreviewDoc(doc)} title="Pratinjau">
+   401→   401→                          <Eye className="w-4 h-4" />
+   402→   402→                        </Button>
+   403→   403→                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-emerald-600" onClick={() => setEditDoc(doc)} title="Edit">
+   404→   404→                          <Edit className="w-4 h-4" />
+   405→   405→                        </Button>
+   406→   406→                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-blue-600" asChild title="Unduh">
+   407→   407→                          <a href={`/uploads/${doc.pdf_filename}`} target="_blank" rel="noopener noreferrer" download>
+   408→   408→                            <Download className="w-4 h-4" />
+   409→   409→                          </a>
+   410→   410→                        </Button>
+   411→   411→                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-600" onClick={() => handleDelete(doc.id)} title="Hapus">
+   412→   412→                          <Trash2 className="w-4 h-4" />
+   413→   413→                        </Button>
+   414→   414→                      </td>
+   415→   415→                    </tr>
+   416→   416→                  ))
+   417→   417→                )}
+   418→   418→              </tbody>
+   419→   419→            </table>
+   420→   420→          </div>
+   421→   421→        </div>
+   422→   422→      </main>
+   423→   423→
+   424→   424→      {/* Footer / Developer Info */}
+   425→   425→      <footer className="bg-white border-t border-slate-200 py-4 px-6 shrink-0 mt-auto">
+   426→   426→        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center text-xs text-slate-500 gap-2">
+   427→   427→          <p>&copy; {new Date().getFullYear()} ARSIP-DIGIKAN.</p>
+   428→   428→          <div className="flex gap-4">
+   429→   429→            <span>Pengembang: <strong>ronifisheries</strong></span>
+   430→   430→            <span>Email: <strong>roniirama@gmail.com</strong></span>
+   431→   431→            <span>Telp: <strong>081256400033</strong></span>
+   432→   432→          </div>
+   433→   433→        </div>
+   434→   434→      </footer>
+   435→   435→
+   436→   436→      {/* Preview Modal */}
+   437→   437→      {previewDoc && (
+   438→   438→        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 p-4">
+   439→   439→          <div className="bg-white rounded-none shadow-xl w-full h-full max-w-[95vw] max-h-[95vh] flex flex-col">
+   440→   440→            <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50">
+   441→   441→              <div>
+   442→   442→                <h3 className="font-bold text-slate-800">{previewDoc.title}</h3>
+   443→   443→                <p className="text-xs text-slate-500 font-mono mt-1">{previewDoc.reference_number}</p>
+   444→   444→              </div>
+   445→   445→              <Button variant="ghost" size="icon" onClick={() => setPreviewDoc(null)} className="h-8 w-8 text-slate-500 hover:text-slate-900">
+   446→   446→                <X className="w-5 h-5" />
+   447→   447→              </Button>
+   448→   448→            </div>
+   449→   449→            <div className="flex-1 p-0 overflow-hidden bg-slate-200">
+   450→   450→              <iframe 
+   451→   451→                src={`/uploads/${previewDoc.pdf_filename}`} 
+   452→   452→                className="w-full h-full border-0"
+   453→   453→                title="PDF Preview"
+   454→   454→              />
+   455→   455→            </div>
+   456→   456→          </div>
+   457→   457→        </div>
+   458→   458→      )}
+   459→   459→
+   460→   460→      {/* Edit Modal */}
+   461→   461→      {editDoc && (
+   462→   462→        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+   463→   463→          <div className="bg-white rounded-none shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+   464→   464→            <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50">
+   465→   465→              <h3 className="font-bold text-slate-800">Edit Dokumen</h3>
+   466→   466→              <Button variant="ghost" size="icon" onClick={() => setEditDoc(null)} className="h-8 w-8 text-slate-500 hover:text-slate-900">
+   467→   467→                <X className="w-5 h-5" />
+   468→   468→              </Button>
+   469→   469→            </div>
+   470→   470→            <div className="flex-1 overflow-y-auto p-6">
+   471→   471→              <form id="edit-form" onSubmit={handleEditSubmit} className="space-y-4">
+   472→   472→                <div className="grid grid-cols-2 gap-4">
+   473→   473→                  <div className="space-y-2">
+   474→   474→                    <label className="text-sm font-medium">Tipe Surat</label>
+   475→   475→                    <select 
+   476→   476→                      className="flex h-10 w-full rounded-none bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 px-3 py-2 text-sm outline-none transition-all"
+   477→   477→                      value={editDoc.type}
+   478→   478→                      onChange={(e) => setEditDoc({...editDoc, type: e.target.value as any})}
+   479→   479→                    >
+   480→   480→                      <option value="INCOMING">Surat Masuk</option>
+   481→   481→                      <option value="OUTGOING">Surat Keluar</option>
+   482→   482→                    </select>
+   483→   483→                  </div>
+   484→   484→
+   485→   485→                  <div className="space-y-2">
+   486→   486→                    <label className="text-sm font-medium">Kategori</label>
+   487→   487→                    <input 
+   488→   488→                      list="edit-categories"
+   489→   489→                      className="flex h-10 w-full rounded-none bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 px-3 py-2 text-sm outline-none transition-all"
+   490→   490→                      value={editDoc.category}
+   491→   491→                      onChange={(e) => setEditDoc({...editDoc, category: e.target.value})}
+   492→   492→                      placeholder="Pilih atau ketik..."
+   493→   493→                    />
+   494→   494→                    <datalist id="edit-categories">
+   495→   495→                      <option value="Segera" />
+   496→   496→                      <option value="Penting" />
+   497→   497→                      <option value="Biasa" />
+   498→   498→                      <option value="Rahasia" />
+   499→   499→                    </datalist>
+   500→   500→                  </div>
+   501→   501→                </div>
+   502→   502→
+   503→   503→                <div className="space-y-2">
+   504→   504→                  <label className="text-sm font-medium">Seksi Bidang</label>
+   505→   505→                  <select 
+   506→   506→                    className="flex h-10 w-full rounded-none bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 px-3 py-2 text-sm outline-none transition-all"
+   507→   507→                    value={editDoc.seksi}
+   508→   508→                    onChange={(e) => setEditDoc({...editDoc, seksi: e.target.value})}
+   509→   509→                  >
+   510→   510→                    <option value="Perikanan Budidaya">Perikanan Budidaya</option>
+   511→   511→                    <option value="Perikanan Tangkap">Perikanan Tangkap</option>
+   512→   512→                    <option value="Seksi Pengolahan dan Pemasaran ikan">Seksi Pengolahan dan Pemasaran ikan</option>
+   513→   513→                  </select>
+   514→   514→                </div>
+   515→   515→
+   516→   516→                <div className="space-y-2">
+   517→   517→                  <label className="text-sm font-medium">Nomor Referensi</label>
+   518→   518→                  <Input 
+   519→   519→                    required
+   520→   520→                    value={editDoc.reference_number}
+   521→   521→                    onChange={(e) => setEditDoc({...editDoc, reference_number: e.target.value})}
+   522→   522→                    className="rounded-none bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500"
+   523→   523→                  />
+   524→   524→                </div>
+   525→   525→
+   526→   526→                <div className="space-y-2">
+   527→   527→                  <label className="text-sm font-medium">Perihal / Judul</label>
+   528→   528→                  <Input 
+   529→   529→                    required
+   530→   530→                    value={editDoc.title}
+   531→   531→                    onChange={(e) => setEditDoc({...editDoc, title: e.target.value})}
+   532→   532→                    className="rounded-none bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500"
+   533→   533→                  />
+   534→   534→                </div>
+   535→   535→
+   536→   536→                <div className="grid grid-cols-2 gap-4">
+   537→   537→                  <div className="space-y-2">
+   538→   538→                    <label className="text-sm font-medium">Pengirim</label>
+   539→   539→                    <Input 
+   540→   540→                      value={editDoc.sender}
+   541→   541→                      onChange={(e) => setEditDoc({...editDoc, sender: e.target.value})}
+   542→   542→                      className="rounded-none bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500"
+   543→   543→                    />
+   544→   544→                  </div>
+   545→   545→
+   546→   546→                  <div className="space-y-2">
+   547→   547→                    <label className="text-sm font-medium">Penerima</label>
+   548→   548→                    <Input 
+   549→   549→                      value={editDoc.recipient}
+   550→   550→                      onChange={(e) => setEditDoc({...editDoc, recipient: e.target.value})}
+   551→   551→                      className="rounded-none bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500"
+   552→   552→                    />
+   553→   553→                  </div>
+   554→   554→                </div>
+   555→   555→
+   556→   556→                <div className="space-y-2">
+   557→   557→                  <label className="text-sm font-medium">Tanggal Surat</label>
+   558→   558→                  <Input 
+   559→   559→                    required
+   560→   560→                    type="date"
+   561→   561→                    value={editDoc.date}
+   562→   562→                    onChange={(e) => setEditDoc({...editDoc, date: e.target.value})}
+   563→   563→                    className="rounded-none bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500"
+   564→   564→                  />
+   565→   565→                </div>
+   566→   566→              </form>
+   567→   567→            </div>
+   568→   568→            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-2">
+   569→   569→              <Button variant="ghost" onClick={() => setEditDoc(null)}>Batal</Button>
+   570→   570→              <Button type="submit" form="edit-form">Simpan Perubahan</Button>
+   571→   571→            </div>
+   572→   572→          </div>
+   573→   573→        </div>
+   574→   574→      )}
+   575→   575→
+   576→   576→      {/* Logs Modal */}
+   577→   577→      {showLogs && (
+   578→   578→        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+   579→   579→          <div className="bg-white rounded-none shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+   580→   580→            <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50">
+   581→   581→              <h3 className="font-bold text-slate-800">Log Aktivitas Sistem</h3>
+   582→   582→              <Button variant="ghost" size="icon" onClick={() => setShowLogs(false)} className="h-8 w-8 text-slate-500 hover:text-slate-900">
+   583→   583→                <X className="w-5 h-5" />
+   584→   584→              </Button>
+   585→   585→            </div>
+   586→   586→            <div className="flex-1 overflow-y-auto p-0">
+   587→   587→              <table className="w-full text-left text-sm text-slate-600">
+   588→   588→                <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
+   589→   589→                  <tr className="text-slate-400 font-bold uppercase text-[10px]">
+   590→   590→                    <th className="px-4 py-3">Waktu</th>
+   591→   591→                    <th className="px-4 py-3">Pengguna</th>
+   592→   592→                    <th className="px-4 py-3">Aksi</th>
+   593→   593→                    <th className="px-4 py-3">Dokumen</th>
+   594→   594→                  </tr>
+   595→   595→                </thead>
+   596→   596→                <tbody className="divide-y divide-slate-100">
+   597→   597→                  {logs.length === 0 ? (
+   598→   598→                    <tr>
+   599→   599→                      <td colSpan={4} className="px-4 py-8 text-center text-slate-500">
+   600→   600→                        Tidak ada log aktivitas.
+   601→   601→                      </td>
+   602→   602→                    </tr>
+   603→   603→                  ) : (
+   604→   604→                    logs.map((log) => (
+   605→   605→                      <tr key={log.id} className="hover:bg-slate-50 transition-colors">
+   606→   606→                        <td className="px-4 py-3 font-mono text-[11px] text-slate-500 whitespace-nowrap">
+   607→   607→                          {format(new Date(log.timestamp), 'dd/MM/yyyy HH:mm:ss')}
+   608→   608→                        </td>
+   609→   609→                        <td className="px-4 py-3 font-medium text-slate-700">{log.username}</td>
+   610→   610→                        <td className="px-4 py-3">
+   611→   611→                          <span className={`px-2 py-0.5 text-[10px] font-bold rounded-sm uppercase ${
+   612→   612→                            log.action === 'UPLOAD' ? 'bg-emerald-100 text-emerald-700' : 
+   613→   613→                            log.action === 'UPDATE' ? 'bg-blue-100 text-blue-700' :
+   614→   614→                            'bg-red-100 text-red-700'
+   615→   615→                          }`}>
+   616→   616→                            {log.action}
+   617→   617→                          </span>
+   618→   618→                        </td>
+   619→   619→                        <td className="px-4 py-3 text-slate-600 max-w-sm truncate">{log.document_title}</td>
+   620→   620→                      </tr>
+   621→   621→                    ))
+   622→   622→                  )}
+   623→   623→                </tbody>
+   624→   624→              </table>
+   625→   625→            </div>
+   626→   626→          </div>
+   627→   627→        </div>
+   628→   628→      )}
+   629→   629→
+   630→   630→      {/* Users Modal */}
+   631→   631→      {showUsers && (
+   632→   632→        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+   633→   633→          <div className="bg-white rounded-none shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+   634→   634→            <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50">
+   635→   635→              <h3 className="font-bold text-slate-800">Manajemen Pengguna</h3>
+   636→   636→              <Button variant="ghost" size="icon" onClick={() => setShowUsers(false)} className="h-8 w-8 text-slate-500 hover:text-slate-900">
+   637→   637→                <X className="w-5 h-5" />
+   638→   638→              </Button>
+   639→   639→            </div>
+   640→   640→            <div className="flex-1 overflow-y-auto p-6 flex flex-col md:flex-row gap-8">
+   641→   641→              <div className="w-full md:w-1/3 space-y-4 border-r border-slate-100 pr-0 md:pr-6">
+   642→   642→                <h4 className="font-bold text-sm text-slate-700">{editUserId ? 'Edit Pengguna' : 'Tambah Pengguna Baru'}</h4>
+   643→   643→                <form onSubmit={handleAddUser} className="space-y-4">
+   644→   644→                  {userError && (
+   645→   645→                    <div className="text-xs text-red-500 bg-red-50 p-2 border border-red-100">
+   646→   646→                      {userError}
+   647→   647→                    </div>
+   648→   648→                  )}
+   649→   649→                  <div className="space-y-2">
+   650→   650→                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Username</label>
+   651→   651→                    <Input 
+   652→   652→                      required
+   653→   653→                      value={newUserUsername}
+   654→   654→                      onChange={(e) => setNewUserUsername(e.target.value)}
+   655→   655→                      className="rounded-none bg-slate-50 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500"
+   656→   656→                    />
+   657→   657→                  </div>
+   658→   658→                  <div className="space-y-2">
+   659→   659→                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Password {editUserId && <span className="text-slate-400 normal-case">(kosongkan jika tidak diubah)</span>}</label>
+   660→   660→                    <Input 
+   661→   661→                      type="password"
+   662→   662→                      required={!editUserId}
+   663→   663→                      value={newUserPassword}
+   664→   664→                      onChange={(e) => setNewUserPassword(e.target.value)}
+   665→   665→                      className="rounded-none bg-slate-50 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500"
+   666→   666→                    />
+   667→   667→                  </div>
+   668→   668→                  <div className="space-y-2">
+   669→   669→                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Peran (Role)</label>
+   670→   670→                    <select 
+   671→   671→                      className="flex h-10 w-full rounded-none bg-slate-50 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 px-3 py-2 text-sm outline-none transition-all"
+   672→   672→                      value={newUserRole}
+   673→   673→                      onChange={(e) => setNewUserRole(e.target.value)}
+   674→   674→                    >
+   675→   675→                      <option value="user">User</option>
+   676→   676→                      <option value="admin">Admin</option>
+   677→   677→                    </select>
+   678→   678→                  </div>
+   679→   679→                  <div className="flex gap-2 mt-2">
+   680→   680→                    {editUserId && (
+   681→   681→                      <Button type="button" variant="ghost" onClick={handleCancelEditUser} className="flex-1 h-10 text-sm">
+   682→   682→                        Batal
+   683→   683→                      </Button>
+   684→   684→                    )}
+   685→   685→                    <Button type="submit" className="flex-1 h-10 text-sm">
+   686→   686→                      {editUserId ? 'Simpan' : 'Tambah'}
+   687→   687→                    </Button>
+   688→   688→                  </div>
+   689→   689→                </form>
+   690→   690→              </div>
+   691→   691→              <div className="w-full md:w-2/3">
+   692→   692→                <h4 className="font-bold text-sm text-slate-700 mb-4">Daftar Pengguna</h4>
+   693→   693→                <div className="border border-slate-200">
+   694→   694→                  <table className="w-full text-left text-sm text-slate-600">
+   695→   695→                    <thead className="bg-slate-50 border-b border-slate-200">
+   696→   696→                      <tr className="text-slate-400 font-bold uppercase text-[10px]">
+   697→   697→                        <th className="px-4 py-3">Username</th>
+   698→   698→                        <th className="px-4 py-3">Peran (Role)</th>
+   699→   699→                        <th className="px-4 py-3 text-right">Aksi</th>
+   700→   700→                      </tr>
+   701→   701→                    </thead>
+   702→   702→                    <tbody className="divide-y divide-slate-100">
+   703→   703→                      {usersList.length === 0 ? (
+   704→   704→                        <tr>
+   705→   705→                          <td colSpan={3} className="px-4 py-8 text-center text-slate-500">
+   706→   706→                            Memuat daftar pengguna...
+   707→   707→                          </td>
+   708→   708→                        </tr>
+   709→   709→                      ) : (
+   710→   710→                        usersList.map((u) => (
+   711→   711→                          <tr key={u.id} className="hover:bg-slate-50 transition-colors">
+   712→   712→                            <td className="px-4 py-3 font-medium text-slate-700">{u.username}</td>
+   713→   713→                            <td className="px-4 py-3">
+   714→   714→                              <span className={`px-2 py-0.5 text-[10px] font-bold rounded-sm uppercase ${
+   715→   715→                                u.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-700'
+   716→   716→                              }`}>
+   717→   717→                                {u.role}
+   718→   718→                              </span>
+   719→   719→                            </td>
+   720→   720→                            <td className="px-4 py-3 text-right space-x-1">
+   721→   721→                              <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-emerald-600" onClick={() => handleEditUserClick(u)} title="Edit">
+   722→   722→                                <Edit className="w-3 h-3" />
+   723→   723→                              </Button>
+   724→   724→                              <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-600" onClick={() => handleDeleteUser(u.id)} title="Hapus">
+   725→   725→                                <Trash2 className="w-3 h-3" />
+   726→   726→                              </Button>
+   727→   727→                            </td>
+   728→   728→                          </tr>
+   729→   729→                        ))
+   730→   730→                      )}
+   731→   731→                    </tbody>
+   732→   732→                  </table>
+   733→   733→                </div>
+   734→   734→              </div>
+   735→   735→            </div>
+   736→   736→          </div>
+   737→   737→        </div>
+   738→   738→      )}
+   739→   739→    </div>
+   740→   740→  );
+   741→   741→}
+   742→   742→

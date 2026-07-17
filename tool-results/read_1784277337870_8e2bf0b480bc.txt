@@ -1,0 +1,542 @@
+     1→   201→          'Content-Type': 'application/json',
+     2→   202→          Authorization: `Bearer ${token}` 
+     3→   203→        },
+     4→   204→        body: JSON.stringify(editDoc)
+     5→   205→      });
+     6→   206→      
+     7→   207→      if (res.ok) {
+     8→   208→        setEditDoc(null);
+     9→   209→        fetchDocuments();
+    10→   210→      } else {
+    11→   211→        const data = await res.json();
+    12→   212→        alert(data.error || 'Gagal menyimpan perubahan');
+    13→   213→      }
+    14→   214→    } catch (err) {
+    15→   215→      console.error(err);
+    16→   216→      alert('Gagal menyimpan perubahan');
+    17→   217→    }
+    18→   218→  };
+    19→   219→
+    20→   220→  return (
+    21→   221→    <div className="min-h-screen bg-[#F1F5F9] font-sans flex flex-col">
+    22→   222→      {/* Navbar */}
+    23→   223→      <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 sticky top-0 z-10">
+    24→   224→        <div className="flex items-center gap-3">
+    25→   225→          <div className="w-8 h-8 bg-blue-600 flex items-center justify-center rounded-none">
+    26→   226→            <FileText className="w-5 h-5 text-white" />
+    27→   227→          </div>
+    28→   228→          <h1 className="font-bold text-xl tracking-tight text-slate-900">ARSIP-<span className="font-light">DIGIKAN</span></h1>
+    29→   229→        </div>
+    30→   230→        <div className="flex items-center gap-4">
+    31→   231→          {user?.role === 'admin' && (
+    32→   232→            <Button variant="outline" size="sm" onClick={() => { setShowUsers(true); fetchUsersList(); }} className="text-xs font-bold text-slate-600">
+    33→   233→              <Users className="w-4 h-4 mr-2" />
+    34→   234→              Manajemen Pengguna
+    35→   235→            </Button>
+    36→   236→          )}
+    37→   237→          <Button variant="outline" size="sm" onClick={() => { setShowLogs(true); fetchLogs(); }} className="text-xs font-bold text-slate-600">
+    38→   238→            <History className="w-4 h-4 mr-2" />
+    39→   239→            Log Aktivitas
+    40→   240→          </Button>
+    41→   241→          <div className="text-right">
+    42→   242→            <p className="text-sm font-semibold leading-none">{user?.username}</p>
+    43→   243→            <p className="text-xs text-slate-500">Administrator</p>
+    44→   244→          </div>
+    45→   245→          <div className="w-10 h-10 bg-slate-200 border border-slate-300 flex items-center justify-center">
+    46→   246→            <Button variant="ghost" size="icon" onClick={logout} title="Keluar" className="w-full h-full rounded-none hover:bg-slate-300">
+    47→   247→              <LogOut className="w-5 h-5 text-slate-700" />
+    48→   248→            </Button>
+    49→   249→          </div>
+    50→   250→        </div>
+    51→   251→      </header>
+    52→   252→
+    53→   253→      <main className="max-w-7xl mx-auto w-full px-6 py-6 flex-1 flex flex-col">
+    54→   254→        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+    55→   255→          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Daftar Dokumen</h2>
+    56→   256→          <Button onClick={onAddDocument} className="font-bold uppercase tracking-widest text-xs px-6">
+    57→   257→            <Plus className="w-4 h-4 mr-2" />
+    58→   258→            Unggah PDF
+    59→   259→          </Button>
+    60→   260→        </div>
+    61→   261→
+    62→   262→        {storageUsage && (
+    63→   263→          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 animate-fade-in">
+    64→   264→            <div className="bg-white border border-slate-200 p-4 shadow-sm flex items-center justify-between">
+    65→   265→              <div>
+    66→   266→                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Dokumen</p>
+    67→   267→                <p className="text-2xl font-bold text-slate-800 mt-1">{storageUsage.fileCount} berkas</p>
+    68→   268→              </div>
+    69→   269→              <div className="p-3 bg-blue-50 text-blue-600 rounded-none">
+    70→   270→                <FileText className="w-6 h-6" />
+    71→   271→              </div>
+    72→   272→            </div>
+    73→   273→
+    74→   274→            <div className="bg-white border border-slate-200 p-4 shadow-sm md:col-span-2 flex flex-col justify-between">
+    75→   275→              <div className="flex justify-between items-center mb-2">
+    76→   276→                <div>
+    77→   277→                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Kapasitas Penyimpanan Server</p>
+    78→   278→                  <p className="text-sm font-medium text-slate-600 mt-1">
+    79→   279→                    {(storageUsage.usedBytes / (1024 * 1024)).toFixed(2)} MB dari {(storageUsage.limitBytes / (1024 * 1024)).toFixed(0)} MB digunakan
+    80→   280→                  </p>
+    81→   281→                </div>
+    82→   282→                <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1">
+    83→   283→                  {((storageUsage.usedBytes / storageUsage.limitBytes) * 100).toFixed(1)}% Terisi
+    84→   284→                </span>
+    85→   285→              </div>
+    86→   286→              <div className="w-full bg-slate-100 h-2 rounded-none overflow-hidden">
+    87→   287→                <div 
+    88→   288→                  className="bg-blue-600 h-full transition-all duration-500" 
+    89→   289→                  style={{ width: `${Math.min(100, (storageUsage.usedBytes / storageUsage.limitBytes) * 100)}%` }}
+    90→   290→                />
+    91→   291→              </div>
+    92→   292→            </div>
+    93→   293→          </div>
+    94→   294→        )}
+    95→   295→
+    96→   296→        <div className="mb-6 flex flex-col xl:flex-row gap-4 bg-white p-4 border border-slate-200 shadow-sm">
+    97→   297→          <div className="relative flex-1">
+    98→   298→            <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+    99→   299→              <Search className="w-4 h-4 text-slate-400" />
+   100→   300→            </span>
+   101→   301→            <input 
+   102→   302→              type="text"
+   103→   303→              placeholder="Cari nomor surat, perihal, atau kategori..." 
+   104→   304→              className="w-full bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 py-2 pl-10 pr-4 text-sm outline-none transition-all h-[36px]"
+   105→   305→              value={search}
+   106→   306→              onChange={(e) => setSearch(e.target.value)}
+   107→   307→            />
+   108→   308→          </div>
+   109→   309→          <div className="flex flex-wrap gap-4">
+   110→   310→            <select 
+   111→   311→              className="h-[36px] bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 px-3 text-sm outline-none transition-all"
+   112→   312→              value={typeFilter}
+   113→   313→              onChange={(e) => setTypeFilter(e.target.value)}
+   114→   314→            >
+   115→   315→              <option value="">Semua Tipe</option>
+   116→   316→              <option value="INCOMING">Surat Masuk</option>
+   117→   317→              <option value="OUTGOING">Surat Keluar</option>
+   118→   318→            </select>
+   119→   319→            <input 
+   120→   320→              list="filter-categories"
+   121→   321→              placeholder="Semua Kategori"
+   122→   322→              className="h-[36px] bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 px-3 text-sm outline-none transition-all w-32"
+   123→   323→              value={categoryFilter}
+   124→   324→              onChange={(e) => setCategoryFilter(e.target.value)}
+   125→   325→            />
+   126→   326→            <datalist id="filter-categories">
+   127→   327→              <option value="Segera" />
+   128→   328→              <option value="Penting" />
+   129→   329→              <option value="Biasa" />
+   130→   330→              <option value="Rahasia" />
+   131→   331→            </datalist>
+   132→   332→            <select 
+   133→   333→              className="h-[36px] bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 px-3 text-sm outline-none transition-all max-w-[160px]"
+   134→   334→              value={seksiFilter}
+   135→   335→              onChange={(e) => setSeksiFilter(e.target.value)}
+   136→   336→            >
+   137→   337→              <option value="">Semua Seksi</option>
+   138→   338→              <option value="Perikanan Budidaya">Perikanan Budidaya</option>
+   139→   339→              <option value="Perikanan Tangkap">Perikanan Tangkap</option>
+   140→   340→              <option value="Seksi Pengolahan dan Pemasaran ikan">Seksi Pengolahan dan Pemasaran ikan</option>
+   141→   341→            </select>
+   142→   342→            <input 
+   143→   343→              type="date"
+   144→   344→              className="h-[36px] bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 px-3 text-sm outline-none transition-all"
+   145→   345→              value={dateFilter}
+   146→   346→              onChange={(e) => setDateFilter(e.target.value)}
+   147→   347→              title="Filter Tanggal"
+   148→   348→            />
+   149→   349→          </div>
+   150→   350→        </div>
+   151→   351→
+   152→   352→        <div className="bg-white border border-slate-200 flex-1 flex flex-col shadow-sm">
+   153→   353→          <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+   154→   354→            <h3 className="font-bold text-slate-800">Arsip Terbaru</h3>
+   155→   355→          </div>
+   156→   356→          <div className="flex-1 overflow-x-auto">
+   157→   357→            <table className="w-full text-left text-sm text-slate-600">
+   158→   358→              <thead>
+   159→   359→                <tr className="text-slate-400 font-bold uppercase text-[10px] border-b border-slate-100">
+   160→   360→                  <th className="px-4 py-3">No. Ref</th>
+   161→   361→                  <th className="px-4 py-3">Judul</th>
+   162→   362→                  <th className="px-4 py-3">Tipe</th>
+   163→   363→                  <th className="px-4 py-3">Kategori</th>
+   164→   364→                  <th className="px-4 py-3">Seksi Bidang</th>
+   165→   365→                  <th className="px-4 py-3">Tanggal</th>
+   166→   366→                  <th className="px-4 py-3 text-right">Aksi</th>
+   167→   367→                </tr>
+   168→   368→              </thead>
+   169→   369→              <tbody className="divide-y divide-slate-50">
+   170→   370→                {documents.length === 0 ? (
+   171→   371→                  <tr>
+   172→   372→                    <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+   173→   373→                      Tidak ada dokumen ditemukan.
+   174→   374→                    </td>
+   175→   375→                  </tr>
+   176→   376→                ) : (
+   177→   377→                  documents.map((doc) => (
+   178→   378→                    <tr key={doc.id} className="hover:bg-slate-50/80 transition-colors">
+   179→   379→                      <td className="px-4 py-3 font-mono text-xs font-medium text-blue-600">{doc.reference_number}</td>
+   180→   380→                      <td className="px-4 py-3 text-slate-700">{doc.title}</td>
+   181→   381→                      <td className="px-4 py-3">
+   182→   382→                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-sm uppercase ${
+   183→   383→                          doc.type === 'INCOMING' ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'
+   184→   384→                        }`}>
+   185→   385→                          {doc.type === 'INCOMING' ? 'MASUK' : 'KELUAR'}
+   186→   386→                        </span>
+   187→   387→                      </td>
+   188→   388→                      <td className="px-4 py-3">
+   189→   389→                        <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-sm uppercase">
+   190→   390→                          {doc.category}
+   191→   391→                        </span>
+   192→   392→                      </td>
+   193→   393→                      <td className="px-4 py-3 text-xs text-slate-600">
+   194→   394→                        {doc.seksi}
+   195→   395→                      </td>
+   196→   396→                      <td className="px-4 py-3 font-mono text-xs text-slate-500">
+   197→   397→                        {format(new Date(doc.date), 'dd/MM/yyyy')}
+   198→   398→                      </td>
+   199→   399→                      <td className="px-4 py-3 text-right space-x-1">
+   200→   400→                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-blue-600" onClick={() => setPreviewDoc(doc)} title="Pratinjau">
+   201→   401→                          <Eye className="w-4 h-4" />
+   202→   402→                        </Button>
+   203→   403→                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-emerald-600" onClick={() => setEditDoc(doc)} title="Edit">
+   204→   404→                          <Edit className="w-4 h-4" />
+   205→   405→                        </Button>
+   206→   406→                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-blue-600" asChild title="Unduh">
+   207→   407→                          <a href={`/uploads/${doc.pdf_filename}`} target="_blank" rel="noopener noreferrer" download>
+   208→   408→                            <Download className="w-4 h-4" />
+   209→   409→                          </a>
+   210→   410→                        </Button>
+   211→   411→                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-600" onClick={() => handleDelete(doc.id)} title="Hapus">
+   212→   412→                          <Trash2 className="w-4 h-4" />
+   213→   413→                        </Button>
+   214→   414→                      </td>
+   215→   415→                    </tr>
+   216→   416→                  ))
+   217→   417→                )}
+   218→   418→              </tbody>
+   219→   419→            </table>
+   220→   420→          </div>
+   221→   421→        </div>
+   222→   422→      </main>
+   223→   423→
+   224→   424→      {/* Footer / Developer Info */}
+   225→   425→      <footer className="bg-white border-t border-slate-200 py-4 px-6 shrink-0 mt-auto">
+   226→   426→        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center text-xs text-slate-500 gap-2">
+   227→   427→          <p>&copy; {new Date().getFullYear()} ARSIP-DIGIKAN.</p>
+   228→   428→          <div className="flex gap-4">
+   229→   429→            <span>Pengembang: <strong>ronifisheries</strong></span>
+   230→   430→            <span>Email: <strong>roniirama@gmail.com</strong></span>
+   231→   431→            <span>Telp: <strong>081256400033</strong></span>
+   232→   432→          </div>
+   233→   433→        </div>
+   234→   434→      </footer>
+   235→   435→
+   236→   436→      {/* Preview Modal */}
+   237→   437→      {previewDoc && (
+   238→   438→        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 p-4">
+   239→   439→          <div className="bg-white rounded-none shadow-xl w-full h-full max-w-[95vw] max-h-[95vh] flex flex-col">
+   240→   440→            <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50">
+   241→   441→              <div>
+   242→   442→                <h3 className="font-bold text-slate-800">{previewDoc.title}</h3>
+   243→   443→                <p className="text-xs text-slate-500 font-mono mt-1">{previewDoc.reference_number}</p>
+   244→   444→              </div>
+   245→   445→              <Button variant="ghost" size="icon" onClick={() => setPreviewDoc(null)} className="h-8 w-8 text-slate-500 hover:text-slate-900">
+   246→   446→                <X className="w-5 h-5" />
+   247→   447→              </Button>
+   248→   448→            </div>
+   249→   449→            <div className="flex-1 p-0 overflow-hidden bg-slate-200">
+   250→   450→              <iframe 
+   251→   451→                src={`/uploads/${previewDoc.pdf_filename}`} 
+   252→   452→                className="w-full h-full border-0"
+   253→   453→                title="PDF Preview"
+   254→   454→              />
+   255→   455→            </div>
+   256→   456→          </div>
+   257→   457→        </div>
+   258→   458→      )}
+   259→   459→
+   260→   460→      {/* Edit Modal */}
+   261→   461→      {editDoc && (
+   262→   462→        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+   263→   463→          <div className="bg-white rounded-none shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+   264→   464→            <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50">
+   265→   465→              <h3 className="font-bold text-slate-800">Edit Dokumen</h3>
+   266→   466→              <Button variant="ghost" size="icon" onClick={() => setEditDoc(null)} className="h-8 w-8 text-slate-500 hover:text-slate-900">
+   267→   467→                <X className="w-5 h-5" />
+   268→   468→              </Button>
+   269→   469→            </div>
+   270→   470→            <div className="flex-1 overflow-y-auto p-6">
+   271→   471→              <form id="edit-form" onSubmit={handleEditSubmit} className="space-y-4">
+   272→   472→                <div className="grid grid-cols-2 gap-4">
+   273→   473→                  <div className="space-y-2">
+   274→   474→                    <label className="text-sm font-medium">Tipe Surat</label>
+   275→   475→                    <select 
+   276→   476→                      className="flex h-10 w-full rounded-none bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 px-3 py-2 text-sm outline-none transition-all"
+   277→   477→                      value={editDoc.type}
+   278→   478→                      onChange={(e) => setEditDoc({...editDoc, type: e.target.value as any})}
+   279→   479→                    >
+   280→   480→                      <option value="INCOMING">Surat Masuk</option>
+   281→   481→                      <option value="OUTGOING">Surat Keluar</option>
+   282→   482→                    </select>
+   283→   483→                  </div>
+   284→   484→
+   285→   485→                  <div className="space-y-2">
+   286→   486→                    <label className="text-sm font-medium">Kategori</label>
+   287→   487→                    <input 
+   288→   488→                      list="edit-categories"
+   289→   489→                      className="flex h-10 w-full rounded-none bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 px-3 py-2 text-sm outline-none transition-all"
+   290→   490→                      value={editDoc.category}
+   291→   491→                      onChange={(e) => setEditDoc({...editDoc, category: e.target.value})}
+   292→   492→                      placeholder="Pilih atau ketik..."
+   293→   493→                    />
+   294→   494→                    <datalist id="edit-categories">
+   295→   495→                      <option value="Segera" />
+   296→   496→                      <option value="Penting" />
+   297→   497→                      <option value="Biasa" />
+   298→   498→                      <option value="Rahasia" />
+   299→   499→                    </datalist>
+   300→   500→                  </div>
+   301→   501→                </div>
+   302→   502→
+   303→   503→                <div className="space-y-2">
+   304→   504→                  <label className="text-sm font-medium">Seksi Bidang</label>
+   305→   505→                  <select 
+   306→   506→                    className="flex h-10 w-full rounded-none bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 px-3 py-2 text-sm outline-none transition-all"
+   307→   507→                    value={editDoc.seksi}
+   308→   508→                    onChange={(e) => setEditDoc({...editDoc, seksi: e.target.value})}
+   309→   509→                  >
+   310→   510→                    <option value="Perikanan Budidaya">Perikanan Budidaya</option>
+   311→   511→                    <option value="Perikanan Tangkap">Perikanan Tangkap</option>
+   312→   512→                    <option value="Seksi Pengolahan dan Pemasaran ikan">Seksi Pengolahan dan Pemasaran ikan</option>
+   313→   513→                  </select>
+   314→   514→                </div>
+   315→   515→
+   316→   516→                <div className="space-y-2">
+   317→   517→                  <label className="text-sm font-medium">Nomor Referensi</label>
+   318→   518→                  <Input 
+   319→   519→                    required
+   320→   520→                    value={editDoc.reference_number}
+   321→   521→                    onChange={(e) => setEditDoc({...editDoc, reference_number: e.target.value})}
+   322→   522→                    className="rounded-none bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500"
+   323→   523→                  />
+   324→   524→                </div>
+   325→   525→
+   326→   526→                <div className="space-y-2">
+   327→   527→                  <label className="text-sm font-medium">Perihal / Judul</label>
+   328→   528→                  <Input 
+   329→   529→                    required
+   330→   530→                    value={editDoc.title}
+   331→   531→                    onChange={(e) => setEditDoc({...editDoc, title: e.target.value})}
+   332→   532→                    className="rounded-none bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500"
+   333→   533→                  />
+   334→   534→                </div>
+   335→   535→
+   336→   536→                <div className="grid grid-cols-2 gap-4">
+   337→   537→                  <div className="space-y-2">
+   338→   538→                    <label className="text-sm font-medium">Pengirim</label>
+   339→   539→                    <Input 
+   340→   540→                      value={editDoc.sender}
+   341→   541→                      onChange={(e) => setEditDoc({...editDoc, sender: e.target.value})}
+   342→   542→                      className="rounded-none bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500"
+   343→   543→                    />
+   344→   544→                  </div>
+   345→   545→
+   346→   546→                  <div className="space-y-2">
+   347→   547→                    <label className="text-sm font-medium">Penerima</label>
+   348→   548→                    <Input 
+   349→   549→                      value={editDoc.recipient}
+   350→   550→                      onChange={(e) => setEditDoc({...editDoc, recipient: e.target.value})}
+   351→   551→                      className="rounded-none bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500"
+   352→   552→                    />
+   353→   553→                  </div>
+   354→   554→                </div>
+   355→   555→
+   356→   556→                <div className="space-y-2">
+   357→   557→                  <label className="text-sm font-medium">Tanggal Surat</label>
+   358→   558→                  <Input 
+   359→   559→                    required
+   360→   560→                    type="date"
+   361→   561→                    value={editDoc.date}
+   362→   562→                    onChange={(e) => setEditDoc({...editDoc, date: e.target.value})}
+   363→   563→                    className="rounded-none bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500"
+   364→   564→                  />
+   365→   565→                </div>
+   366→   566→              </form>
+   367→   567→            </div>
+   368→   568→            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-2">
+   369→   569→              <Button variant="ghost" onClick={() => setEditDoc(null)}>Batal</Button>
+   370→   570→              <Button type="submit" form="edit-form">Simpan Perubahan</Button>
+   371→   571→            </div>
+   372→   572→          </div>
+   373→   573→        </div>
+   374→   574→      )}
+   375→   575→
+   376→   576→      {/* Logs Modal */}
+   377→   577→      {showLogs && (
+   378→   578→        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+   379→   579→          <div className="bg-white rounded-none shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+   380→   580→            <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50">
+   381→   581→              <h3 className="font-bold text-slate-800">Log Aktivitas Sistem</h3>
+   382→   582→              <Button variant="ghost" size="icon" onClick={() => setShowLogs(false)} className="h-8 w-8 text-slate-500 hover:text-slate-900">
+   383→   583→                <X className="w-5 h-5" />
+   384→   584→              </Button>
+   385→   585→            </div>
+   386→   586→            <div className="flex-1 overflow-y-auto p-0">
+   387→   587→              <table className="w-full text-left text-sm text-slate-600">
+   388→   588→                <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
+   389→   589→                  <tr className="text-slate-400 font-bold uppercase text-[10px]">
+   390→   590→                    <th className="px-4 py-3">Waktu</th>
+   391→   591→                    <th className="px-4 py-3">Pengguna</th>
+   392→   592→                    <th className="px-4 py-3">Aksi</th>
+   393→   593→                    <th className="px-4 py-3">Dokumen</th>
+   394→   594→                  </tr>
+   395→   595→                </thead>
+   396→   596→                <tbody className="divide-y divide-slate-100">
+   397→   597→                  {logs.length === 0 ? (
+   398→   598→                    <tr>
+   399→   599→                      <td colSpan={4} className="px-4 py-8 text-center text-slate-500">
+   400→   600→                        Tidak ada log aktivitas.
+   401→   601→                      </td>
+   402→   602→                    </tr>
+   403→   603→                  ) : (
+   404→   604→                    logs.map((log) => (
+   405→   605→                      <tr key={log.id} className="hover:bg-slate-50 transition-colors">
+   406→   606→                        <td className="px-4 py-3 font-mono text-[11px] text-slate-500 whitespace-nowrap">
+   407→   607→                          {format(new Date(log.timestamp), 'dd/MM/yyyy HH:mm:ss')}
+   408→   608→                        </td>
+   409→   609→                        <td className="px-4 py-3 font-medium text-slate-700">{log.username}</td>
+   410→   610→                        <td className="px-4 py-3">
+   411→   611→                          <span className={`px-2 py-0.5 text-[10px] font-bold rounded-sm uppercase ${
+   412→   612→                            log.action === 'UPLOAD' ? 'bg-emerald-100 text-emerald-700' : 
+   413→   613→                            log.action === 'UPDATE' ? 'bg-blue-100 text-blue-700' :
+   414→   614→                            'bg-red-100 text-red-700'
+   415→   615→                          }`}>
+   416→   616→                            {log.action}
+   417→   617→                          </span>
+   418→   618→                        </td>
+   419→   619→                        <td className="px-4 py-3 text-slate-600 max-w-sm truncate">{log.document_title}</td>
+   420→   620→                      </tr>
+   421→   621→                    ))
+   422→   622→                  )}
+   423→   623→                </tbody>
+   424→   624→              </table>
+   425→   625→            </div>
+   426→   626→          </div>
+   427→   627→        </div>
+   428→   628→      )}
+   429→   629→
+   430→   630→      {/* Users Modal */}
+   431→   631→      {showUsers && (
+   432→   632→        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+   433→   633→          <div className="bg-white rounded-none shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+   434→   634→            <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50">
+   435→   635→              <h3 className="font-bold text-slate-800">Manajemen Pengguna</h3>
+   436→   636→              <Button variant="ghost" size="icon" onClick={() => setShowUsers(false)} className="h-8 w-8 text-slate-500 hover:text-slate-900">
+   437→   637→                <X className="w-5 h-5" />
+   438→   638→              </Button>
+   439→   639→            </div>
+   440→   640→            <div className="flex-1 overflow-y-auto p-6 flex flex-col md:flex-row gap-8">
+   441→   641→              <div className="w-full md:w-1/3 space-y-4 border-r border-slate-100 pr-0 md:pr-6">
+   442→   642→                <h4 className="font-bold text-sm text-slate-700">{editUserId ? 'Edit Pengguna' : 'Tambah Pengguna Baru'}</h4>
+   443→   643→                <form onSubmit={handleAddUser} className="space-y-4">
+   444→   644→                  {userError && (
+   445→   645→                    <div className="text-xs text-red-500 bg-red-50 p-2 border border-red-100">
+   446→   646→                      {userError}
+   447→   647→                    </div>
+   448→   648→                  )}
+   449→   649→                  <div className="space-y-2">
+   450→   650→                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Username</label>
+   451→   651→                    <Input 
+   452→   652→                      required
+   453→   653→                      value={newUserUsername}
+   454→   654→                      onChange={(e) => setNewUserUsername(e.target.value)}
+   455→   655→                      className="rounded-none bg-slate-50 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500"
+   456→   656→                    />
+   457→   657→                  </div>
+   458→   658→                  <div className="space-y-2">
+   459→   659→                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Password {editUserId && <span className="text-slate-400 normal-case">(kosongkan jika tidak diubah)</span>}</label>
+   460→   660→                    <Input 
+   461→   661→                      type="password"
+   462→   662→                      required={!editUserId}
+   463→   663→                      value={newUserPassword}
+   464→   664→                      onChange={(e) => setNewUserPassword(e.target.value)}
+   465→   665→                      className="rounded-none bg-slate-50 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500"
+   466→   666→                    />
+   467→   667→                  </div>
+   468→   668→                  <div className="space-y-2">
+   469→   669→                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Peran (Role)</label>
+   470→   670→                    <select 
+   471→   671→                      className="flex h-10 w-full rounded-none bg-slate-50 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 px-3 py-2 text-sm outline-none transition-all"
+   472→   672→                      value={newUserRole}
+   473→   673→                      onChange={(e) => setNewUserRole(e.target.value)}
+   474→   674→                    >
+   475→   675→                      <option value="user">User</option>
+   476→   676→                      <option value="admin">Admin</option>
+   477→   677→                    </select>
+   478→   678→                  </div>
+   479→   679→                  <div className="flex gap-2 mt-2">
+   480→   680→                    {editUserId && (
+   481→   681→                      <Button type="button" variant="ghost" onClick={handleCancelEditUser} className="flex-1 h-10 text-sm">
+   482→   682→                        Batal
+   483→   683→                      </Button>
+   484→   684→                    )}
+   485→   685→                    <Button type="submit" className="flex-1 h-10 text-sm">
+   486→   686→                      {editUserId ? 'Simpan' : 'Tambah'}
+   487→   687→                    </Button>
+   488→   688→                  </div>
+   489→   689→                </form>
+   490→   690→              </div>
+   491→   691→              <div className="w-full md:w-2/3">
+   492→   692→                <h4 className="font-bold text-sm text-slate-700 mb-4">Daftar Pengguna</h4>
+   493→   693→                <div className="border border-slate-200">
+   494→   694→                  <table className="w-full text-left text-sm text-slate-600">
+   495→   695→                    <thead className="bg-slate-50 border-b border-slate-200">
+   496→   696→                      <tr className="text-slate-400 font-bold uppercase text-[10px]">
+   497→   697→                        <th className="px-4 py-3">Username</th>
+   498→   698→                        <th className="px-4 py-3">Peran (Role)</th>
+   499→   699→                        <th className="px-4 py-3 text-right">Aksi</th>
+   500→   700→                      </tr>
+   501→   701→                    </thead>
+   502→   702→                    <tbody className="divide-y divide-slate-100">
+   503→   703→                      {usersList.length === 0 ? (
+   504→   704→                        <tr>
+   505→   705→                          <td colSpan={3} className="px-4 py-8 text-center text-slate-500">
+   506→   706→                            Memuat daftar pengguna...
+   507→   707→                          </td>
+   508→   708→                        </tr>
+   509→   709→                      ) : (
+   510→   710→                        usersList.map((u) => (
+   511→   711→                          <tr key={u.id} className="hover:bg-slate-50 transition-colors">
+   512→   712→                            <td className="px-4 py-3 font-medium text-slate-700">{u.username}</td>
+   513→   713→                            <td className="px-4 py-3">
+   514→   714→                              <span className={`px-2 py-0.5 text-[10px] font-bold rounded-sm uppercase ${
+   515→   715→                                u.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-700'
+   516→   716→                              }`}>
+   517→   717→                                {u.role}
+   518→   718→                              </span>
+   519→   719→                            </td>
+   520→   720→                            <td className="px-4 py-3 text-right space-x-1">
+   521→   721→                              <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-emerald-600" onClick={() => handleEditUserClick(u)} title="Edit">
+   522→   722→                                <Edit className="w-3 h-3" />
+   523→   723→                              </Button>
+   524→   724→                              <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-600" onClick={() => handleDeleteUser(u.id)} title="Hapus">
+   525→   725→                                <Trash2 className="w-3 h-3" />
+   526→   726→                              </Button>
+   527→   727→                            </td>
+   528→   728→                          </tr>
+   529→   729→                        ))
+   530→   730→                      )}
+   531→   731→                    </tbody>
+   532→   732→                  </table>
+   533→   733→                </div>
+   534→   734→              </div>
+   535→   735→            </div>
+   536→   736→          </div>
+   537→   737→        </div>
+   538→   738→      )}
+   539→   739→    </div>
+   540→   740→  );
+   541→   741→}
+   542→   742→
