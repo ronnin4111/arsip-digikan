@@ -24,3 +24,37 @@ Stage Summary:
 - Full arsip-digikan app successfully converted to Next.js 16
 - All original features preserved: auth, CRUD documents, PDF upload/preview/download, search/filter, activity logs, user management (admin), storage monitoring
 - Credentials: admin_digikan / digikan357
+
+---
+Task ID: 1+2+3+4+5
+Agent: full-stack-developer
+Task: Prepare project for Vercel deployment
+
+Work Log:
+- Installed @vercel/blob package (v2.6.1) for serverless-compatible file storage
+- Switched Prisma datasource from SQLite to PostgreSQL in schema.prisma
+- Added onDelete: SetNull to User-Document and User-Log relations for proper cascade behavior
+- Added mode: 'insensitive' to search queries for PostgreSQL case-insensitive matching
+- Created src/lib/blob.ts helper with uploadPdf, deletePdf, getPdfUrl, isBlobUrl functions
+- Updated /api/documents/route.ts POST handler to upload PDFs to Vercel Blob instead of local filesystem
+- Updated /api/documents/[id]/route.ts DELETE handler to delete blobs via Vercel Blob instead of fs.unlinkSync
+- Updated /api/documents/[id]/preview/route.ts to redirect to blob URLs instead of reading local files
+- Updated /api/documents/[id]/download/route.ts to redirect to blob URLs instead of streaming local files
+- Updated /api/storage-usage/route.ts to estimate storage via document count instead of local filesystem scanning
+- Updated src/lib/db.ts to remove query logging for production serverless
+- Created .env.example with required Vercel environment variables (DATABASE_URL, BLOB_READ_WRITE_TOKEN, JWT_SECRET)
+- Updated next.config.ts with images.remotePatterns for *.vercel-storage.com domain
+- Created vercel.json with build command, install command, framework, and region settings
+- Updated package.json build script to include prisma generate, added postinstall script for Vercel
+- Verified all filesystem (fs/path) imports removed from src/ directory
+- All lint checks pass with zero errors
+
+Stage Summary:
+- Project fully prepared for Vercel serverless deployment
+- SQLite → PostgreSQL (compatible with Vercel Postgres/Neon)
+- Local filesystem uploads → Vercel Blob storage
+- PDF preview/download now redirect to public blob URLs
+- Storage usage estimated from document count (no local filesystem access)
+- No remaining fs/path imports in application code
+- Required env vars documented in .env.example
+- Note: Local dev will not work until DATABASE_URL points to a PostgreSQL instance

@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -31,7 +31,7 @@ model Document {
   seksi          String   @default("")
   createdAt      DateTime @default(now()) @map("created_at")
   createdBy      Int?     @map("created_by")
-  user           User?    @relation(fields: [createdBy], references: [id])
+  user           User?    @relation(fields: [createdBy], references: [id], onDelete: SetNull)
   logs           Log[]
 
   @@map("documents")
@@ -45,8 +45,8 @@ model Log {
   userId        Int?     @map("user_id")
   username      String?
   timestamp     DateTime @default(now())
-  user          User?    @relation(fields: [userId], references: [id])
-  document      Document? @relation(fields: [documentId], references: [id])
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  document      Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
 
   @@map("logs")
 }

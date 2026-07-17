@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import path from 'path';
-import fs from 'fs';
 import { db } from '@/lib/db';
 import { getAuthUser } from '@/lib/auth';
+import { uploadPdf } from '@/lib/blob';
 
-// Helper to transform Prisma document to match frontend expectations
 function transformDoc(doc: any) {
   return {
     id: doc.id,
@@ -26,10 +24,7 @@ function transformDoc(doc: any) {
 export async function GET(request: NextRequest) {
   const authUser = getAuthUser(request);
   if (!authUser) {
-    return NextResponse.json(
-      { error: 'Tidak terautentikasi' },
-      { status: 401 }
-    );
+    return NextResponse.json({ error: 'Tidak terautentikasi' }, { status: 401 });
   }
 
   try {
@@ -44,40 +39,25 @@ export async function GET(request: NextRequest) {
 
     if (q) {
       where.OR = [
-        { title: { contains: q } },
-        { referenceNumber: { contains: q } },
+        { title: { contains: q, mode: 'insensitive' } },
+        { referenceNumber: { contains: q, mode: 'insensitive' } },
       ];
     }
 
-    if (category) {
-      where.category = category;
-    }
-
-    if (type) {
-      where.type = type;
-    }
-
-    if (date) {
-      where.date = date;
-    }
-
-    if (seksi) {
-      where.seksi = seksi;
-    }
+    if (category) where.category = category;
+    if (type) where.type = type;
+    if (date) where.date = date;
+    if (seksi) where.seksi = seksi;
 
     const documents = await db.document.findMany({
       where,
       orderBy: { createdAt: 'desc' },
     });
 
-    // Return flat array with snake_case fields
     return NextResponse.json(documents.map(transformDoc));
   } catch (error) {
     console.error('Get documents error:', error);
-    return NextResponse.json(
-      { error: 'Gagal mengambil data dokumen' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Gagal mengambil data dokumen' }, { status: 500 });
   }
 }
 
@@ -85,10 +65,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const authUser = getAuthUser(request);
   if (!authUser) {
-    return NextResponse.json(
-      { error: 'Tidak terautentikasi' },
-      { status: 401 }
-    );
+    return NextResponse.json({ error: 'Tidak terautentikasi' }, { status: 401 });
   }
 
   try {
@@ -96,45 +73,29 @@ export async function POST(request: NextRequest) {
 
     const type = formData.get('type') as string;
     const title = formData.get('title') as string;
-    // Frontend sends reference_number, API expects referenceNumber
     const referenceNumber = (formData.get('reference_number') as string) || (formData.get('referenceNumber') as string);
     const category = formData.get('category') as string;
     const sender = (formData.get('sender') as string) || '';
     const recipient = (formData.get('recipient') as string) || '';
     const date = formData.get('date') as string;
     const seksi = (formData.get('seksi') as string) || '';
-    // Frontend sends 'pdf', not 'file'
     const file = (formData.get('pdf') as File | null) || (formData.get('file') as File | null);
 
     if (!type || !title || !referenceNumber || !category || !date) {
-      return NextResponse.json(
-        { error: 'Field wajib belum lengkap' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Field wajib belum lengkap' }, { status: 400 });
     }
 
     if (!file) {
-      return NextResponse.json(
-        { error: 'File PDF wajib diunggah' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'File PDF wajib diunggah' }, { status: 400 });
     }
 
-    // Save PDF file
-    const uploadsDir = path.join(process.cwd(), 'uploads');
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-
-    const ext = path.extname(file.name) || '.pdf';
-    const uniqueFilename = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
-    const filePath = path.join(uploadsDir, uniqueFilename);
-
+    // Upload PDF to Vercel Blob
+    const uniqueFilename = `${Date.now()}-${Math.round(Math.random() * 1e9)}-${file.name}`;
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    fs.writeFileSync(filePath, buffer);
+    const blobUrl = await uploadPdf(uniqueFilename, buffer);
 
-    // Create document record
+    // Create document record (pdfFilename now stores the blob URL)
     const document = await db.document.create({
       data: {
         type,
@@ -144,7 +105,7 @@ export async function POST(request: NextRequest) {
         sender,
         recipient,
         date,
-        pdfFilename: uniqueFilename,
+        pdfFilename: blobUrl,
         seksi,
         createdBy: authUser.id,
       },
@@ -164,9 +125,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ id: document.id }, { status: 201 });
   } catch (error) {
     console.error('Upload document error:', error);
-    return NextResponse.json(
-      { error: 'Gagal mengunggah dokumen' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Gagal mengunggah dokumen' }, { status: 500 });
   }
 }
