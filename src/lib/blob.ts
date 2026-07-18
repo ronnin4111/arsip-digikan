@@ -18,13 +18,19 @@ export async function uploadPdf(filename: string, buffer: Buffer): Promise<strin
   if (isGoogleDriveConfigured()) {
     try {
       // Try uploading to Google Drive first
-      return await uploadToDrive(filename, buffer);
+      console.log(`[Storage] Attempting Google Drive upload for: ${filename}`);
+      const fileId = await uploadToDrive(filename, buffer);
+      console.log(`[Storage] Google Drive upload successful. File ID: ${fileId}`);
+      return fileId;
     } catch (error: unknown) {
       // If Google Drive upload fails (e.g., Service Account quota issue),
       // fall back to Vercel Blob
-      const gerr = error as { code?: number; message?: string };
-      console.warn(
-        `Google Drive upload failed (code: ${gerr.code}): ${gerr.message || 'Unknown error'}. Falling back to Vercel Blob.`
+      const gerr = error as { code?: number; message?: string; errors?: Array<{ message?: string; reason?: string }> };
+      const errorDetail = gerr.errors?.length
+        ? gerr.errors.map(e => `${e.reason}: ${e.message}`).join('; ')
+        : gerr.message || 'Unknown error';
+      console.error(
+        `[Storage] Google Drive upload FAILED (code: ${gerr.code}): ${errorDetail}. Falling back to Vercel Blob.`
       );
       // Fall through to Vercel Blob
     }

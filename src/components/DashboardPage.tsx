@@ -20,6 +20,7 @@ import {
   Users,
   HardDrive,
 } from 'lucide-react';
+import DriveSetup from '@/components/DriveSetup';
 import { format } from 'date-fns';
 
 interface DashboardProps {
@@ -385,6 +386,11 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                 />
               </div>
             </div>
+          )}
+
+          {/* Drive Setup - shows when Google Drive needs configuration */}
+          {user?.role === 'admin' && token && (
+            <DriveSetup token={token} />
           )}
 
           {/* Filters */}
