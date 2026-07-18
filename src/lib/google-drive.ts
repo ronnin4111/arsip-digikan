@@ -1,66 +1,94 @@
 /**
  * Google Drive integration for document storage.
- * Uses a Service Account for server-to-server authentication.
  *
- * IMPORTANT: This module uses LAZY/DYNAMIC imports for googleapis
- * to avoid loading the heavy module when it's not needed.
- * Only routes that actually use Google Drive APIs will load the module.
+ * Supports TWO authentication methods:
  *
- * IMPORTANT: Service Accounts do NOT have storage quota.
- * You MUST use a Shared Drive (formerly Team Drive) for uploads.
+ * 1. OAuth2 with Refresh Token (RECOMMENDED for personal Gmail accounts)
+ *    - Works with personal @gmail.com accounts
+ *    - Files are stored using your personal Drive's 15GB quota
+ *    - Setup: Get refresh token via Google OAuth2 Playground
+ *    - Env vars: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN
  *
- * Setup:
- * 1. Go to Google Cloud Console → Create Project
- * 2. Enable Google Drive API
- * 3. Create Service Account → Download JSON key
- * 4. Create a Shared Drive in Google Drive
- * 5. Add the service account email as a Contributor/Content manager to the Shared Drive
- * 6. Create a folder inside the Shared Drive (or use the Shared Drive root)
- * 7. Set the folder/drive ID in GOOGLE_DRIVE_FOLDER_ID env var
+ * 2. Service Account (REQUIRES Shared Drive / Google Workspace)
+ *    - Service Accounts have NO storage quota
+ *    - Can ONLY upload to Shared Drives, NOT personal folders
+ *    - Env vars: GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY
+ *    - Also requires: GOOGLE_DRIVE_FOLDER_ID pointing to a Shared Drive folder
+ *
+ * Fallback: If Google Drive upload fails, Vercel Blob is used (250MB free)
  */
 
 // Types for lazy-loaded modules
-type JWTType = import('google-auth-library').JWT;
+type AuthClientType = import('google-auth-library').JWT | import('google-auth-library').OAuth2Client;
 type DriveType = import('googleapis').drive_v3.Drive;
 
 // Lazy-initialized instances (not loaded until first use)
-let authClient: JWTType | null = null;
+let authClient: AuthClientType | null = null;
 let driveInstance: DriveType | null = null;
 
-async function getAuthClient(): Promise<JWTType> {
+/**
+ * Check if OAuth2 with refresh token is configured
+ */
+function isOAuth2Configured(): boolean {
+  return !!(
+    process.env.GOOGLE_CLIENT_ID &&
+    process.env.GOOGLE_CLIENT_SECRET &&
+    process.env.GOOGLE_REFRESH_TOKEN
+  );
+}
+
+/**
+ * Check if Service Account is configured
+ */
+function isServiceAccountConfigured(): boolean {
+  return !!(
+    process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL &&
+    process.env.GOOGLE_PRIVATE_KEY
+  );
+}
+
+async function getAuthClient(): Promise<AuthClientType> {
   if (authClient) return authClient;
 
-  const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-
-  if (!clientEmail || !privateKey) {
-    throw new Error(
-      'Google Drive not configured. Set GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY env vars.'
+  // Priority 1: OAuth2 with refresh token (works with personal Gmail)
+  if (isOAuth2Configured()) {
+    const { OAuth2Client } = await import('google-auth-library');
+    const client = new OAuth2Client(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
     );
+    client.setCredentials({
+      refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+    });
+    authClient = client;
+    return authClient;
   }
 
-  // Dynamic import - only loads google-auth-library when actually needed
-  const { JWT } = await import('google-auth-library');
+  // Priority 2: Service Account (requires Shared Drive)
+  if (isServiceAccountConfigured()) {
+    const { JWT } = await import('google-auth-library');
+    authClient = new JWT({
+      email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      scopes: ['https://www.googleapis.com/auth/drive'],
+    });
+    return authClient;
+  }
 
-  authClient = new JWT({
-    email: clientEmail,
-    key: privateKey,
-    scopes: ['https://www.googleapis.com/auth/drive'],
-  });
-
-  return authClient;
+  throw new Error(
+    'Google Drive not configured. Set either OAuth2 vars (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN) or Service Account vars (GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY).'
+  );
 }
 
 async function getDrive(): Promise<DriveType> {
   if (driveInstance) return driveInstance;
   const auth = await getAuthClient();
 
-  // Dynamic import - only loads googleapis when actually needed
   const { google } = await import('googleapis');
 
   driveInstance = google.drive({
     version: 'v3',
-    auth: auth as unknown as Parameters<typeof google.drive>[0]['auth'],
+    auth: auth as Parameters<typeof google.drive>[0]['auth'],
   });
 
   return driveInstance;
@@ -75,44 +103,40 @@ function getFolderId(): string {
 }
 
 /**
- * Check if Google Drive is configured (env vars are set)
+ * Check if Google Drive is configured (any method)
  * This is a pure function - NO googleapis import needed
  */
 export function isGoogleDriveConfigured(): boolean {
   return !!(
-    process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL &&
-    process.env.GOOGLE_PRIVATE_KEY &&
-    process.env.GOOGLE_DRIVE_FOLDER_ID
+    process.env.GOOGLE_DRIVE_FOLDER_ID &&
+    (isOAuth2Configured() || isServiceAccountConfigured())
   );
 }
 
 /**
+ * Get the authentication method being used
+ */
+export function getAuthMethod(): 'oauth2' | 'service-account' | 'none' {
+  if (isOAuth2Configured()) return 'oauth2';
+  if (isServiceAccountConfigured()) return 'service-account';
+  return 'none';
+}
+
+/**
  * Check if a string is a Google Drive file ID
- * This is a pure function - NO googleapis import needed
- * Google Drive file IDs are typically 28-60 character alphanumeric strings
  */
 export function isGoogleDriveFileId(value: string): boolean {
   if (!value) return false;
-  // Google Drive file IDs are alphanumeric with possible hyphens/underscores
-  // They don't start with http and don't contain slashes or dots
   return !value.startsWith('http') && !value.includes('/') && !value.includes('.');
 }
 
 /**
  * Upload a PDF file to Google Drive
- *
- * Service Accounts don't have storage quota, so files MUST be uploaded
- * to a Shared Drive. The supportsAllDrives parameter is set to true.
- *
- * @param filename - The name for the file in Google Drive
- * @param buffer - The file content as a Buffer
- * @returns The Google Drive file ID
  */
 export async function uploadToDrive(filename: string, buffer: Buffer): Promise<string> {
   const drive = await getDrive();
   const folderId = getFolderId();
 
-  // Convert Buffer to Readable stream (googleapis requires a stream for media.body)
   const { Readable } = await import('stream');
   const stream = Readable.from(buffer);
 
@@ -127,7 +151,6 @@ export async function uploadToDrive(filename: string, buffer: Buffer): Promise<s
       body: stream,
     },
     fields: 'id',
-    // Required for Shared Drives - Service Accounts don't have their own quota
     supportsAllDrives: true,
   });
 
@@ -140,7 +163,6 @@ export async function uploadToDrive(filename: string, buffer: Buffer): Promise<s
 
 /**
  * Delete a file from Google Drive
- * @param fileId - The Google Drive file ID
  */
 export async function deleteFromDrive(fileId: string): Promise<void> {
   const drive = await getDrive();
@@ -152,7 +174,6 @@ export async function deleteFromDrive(fileId: string): Promise<void> {
 
 /**
  * Get a file's metadata from Google Drive
- * @param fileId - The Google Drive file ID
  */
 export async function getFileInfo(fileId: string): Promise<{ size: number; name: string; mimeType: string } | null> {
   try {
@@ -169,7 +190,6 @@ export async function getFileInfo(fileId: string): Promise<{ size: number; name:
       mimeType: (data.mimeType as string) || '',
     };
   } catch (error: unknown) {
-    // File might have been deleted from Drive directly
     const gerr = error as { code?: number };
     if (gerr.code === 404) return null;
     throw error;
@@ -183,7 +203,6 @@ export async function getFileInfo(fileId: string): Promise<{ size: number; name:
 export async function getFileViewLink(fileId: string): Promise<string> {
   const drive = await getDrive();
 
-  // Try to create a permission for anyone with link to view
   try {
     await drive.permissions.create({
       fileId,
@@ -194,22 +213,18 @@ export async function getFileViewLink(fileId: string): Promise<string> {
       supportsAllDrives: true,
     });
   } catch {
-    // Permission might already exist, that's fine
+    // Permission might already exist
   }
 
-  // Return the embed/view URL
   return `https://drive.google.com/file/d/${fileId}/preview`;
 }
 
 /**
  * Get the direct download URL for a Google Drive file
- * @param fileId - The Google Drive file ID
- * @returns Direct download URL
  */
 export async function getFileDownloadUrl(fileId: string): Promise<string> {
   const drive = await getDrive();
 
-  // Ensure the file is accessible
   try {
     await drive.permissions.create({
       fileId,
@@ -228,8 +243,6 @@ export async function getFileDownloadUrl(fileId: string): Promise<string> {
 
 /**
  * Download a file from Google Drive
- * @param fileId - The Google Drive file ID
- * @returns Buffer with file content
  */
 export async function downloadFromDrive(fileId: string): Promise<Buffer> {
   const drive = await getDrive();
@@ -248,13 +261,6 @@ export async function downloadFromDrive(fileId: string): Promise<Buffer> {
 
 /**
  * Get storage usage info for the Google Drive folder.
- *
- * IMPORTANT: Service Accounts don't have their own storage quota,
- * so `drive.about.get({ fields: 'storageQuota' })` returns 0 usage.
- * Instead, we calculate actual used bytes by listing all files in the
- * configured folder and summing their sizes.
- *
- * @returns Storage usage in bytes and limit (defaults to 15GB for Google Drive free tier)
  */
 export async function getDriveStorageInfo(): Promise<{ usedBytes: number; limitBytes: number }> {
   const files = await listDriveFiles();

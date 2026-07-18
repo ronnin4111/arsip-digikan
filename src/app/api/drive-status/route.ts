@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
-import { isGoogleDriveConfigured } from '@/lib/google-drive';
+import { isGoogleDriveConfigured, isGoogleDriveFileId, getAuthMethod } from '@/lib/google-drive';
 
 export async function GET(request: NextRequest) {
   const authUser = getAuthUser(request);
@@ -10,38 +10,55 @@ export async function GET(request: NextRequest) {
 
   const configured = isGoogleDriveConfigured();
   const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID || '';
-  const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '';
+  const authMethod = getAuthMethod();
 
   if (!configured) {
     return NextResponse.json({
       configured: false,
-      message: 'Google Drive not configured. Set GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY, and GOOGLE_DRIVE_FOLDER_ID env vars.',
+      authMethod,
+      message: 'Google Drive not configured. Set the required env vars.',
     });
   }
 
-  // Try to verify the folder and check if it's in a Shared Drive
+  // Try to verify the folder and check accessibility
   try {
     // Dynamic import - only loads googleapis when checking drive status
     const { google } = await import('googleapis');
-    const { JWT } = await import('google-auth-library');
 
-    const privateKey = process.env.GOOGLE_PRIVATE_KEY!.replace(/\\n/g, '\n');
+    let drive;
 
-    const auth = new JWT({
-      email: clientEmail,
-      key: privateKey,
-      scopes: ['https://www.googleapis.com/auth/drive'],
-    });
-
-    const drive = google.drive({
-      version: 'v3',
-      auth: auth as unknown as Parameters<typeof google.drive>[0]['auth'],
-    });
+    if (authMethod === 'oauth2') {
+      // OAuth2 with refresh token
+      const { OAuth2Client } = await import('google-auth-library');
+      const client = new OAuth2Client(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET,
+      );
+      client.setCredentials({
+        refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+      });
+      drive = google.drive({
+        version: 'v3',
+        auth: client as Parameters<typeof google.drive>[0]['auth'],
+      });
+    } else {
+      // Service Account
+      const { JWT } = await import('google-auth-library');
+      const auth = new JWT({
+        email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+        key: process.env.GOOGLE_PRIVATE_KEY!.replace(/\\n/g, '\n'),
+        scopes: ['https://www.googleapis.com/auth/drive'],
+      });
+      drive = google.drive({
+        version: 'v3',
+        auth: auth as unknown as Parameters<typeof google.drive>[0]['auth'],
+      });
+    }
 
     // Get folder info
     const folderRes = await drive.files.get({
       fileId: folderId,
-      fields: 'id,name,mimeType,driveId,capabilities',
+      fields: 'id,name,mimeType,driveId',
       supportsAllDrives: true,
     });
 
@@ -49,45 +66,53 @@ export async function GET(request: NextRequest) {
     const driveId = folderData.driveId as string | undefined;
     const isInSharedDrive = !!driveId;
 
-    // List shared drives
-    let sharedDrives: Array<{ id: string; name: string }> = [];
-    try {
-      const drivesRes = await drive.drives.list({ pageSize: 10 });
-      sharedDrives = (drivesRes.data.drives || []).map((d: any) => ({
-        id: d.id || '',
-        name: d.name || '',
-      }));
-    } catch {
-      // Ignore
+    // For OAuth2, uploads work regardless of Shared Drive
+    if (authMethod === 'oauth2') {
+      return NextResponse.json({
+        configured: true,
+        working: true,
+        authMethod,
+        folderId,
+        folderName: folderData.name || '',
+        isInSharedDrive,
+        message: 'Google Drive is properly configured with OAuth2.',
+      });
     }
 
+    // For Service Account, check if it's in a Shared Drive
     if (isInSharedDrive) {
       return NextResponse.json({
         configured: true,
         working: true,
+        authMethod,
         folderId,
         folderName: folderData.name || '',
         isInSharedDrive: true,
         driveId,
-        message: 'Google Drive is properly configured with a Shared Drive.',
+        message: 'Google Drive is properly configured with Service Account + Shared Drive.',
       });
     } else {
+      // Service Account without Shared Drive - won't work for uploads
+      let sharedDrives: Array<{ id: string; name: string }> = [];
+      try {
+        const drivesRes = await drive.drives.list({ pageSize: 10 });
+        sharedDrives = (drivesRes.data.drives || []).map((d: any) => ({
+          id: d.id || '',
+          name: d.name || '',
+        }));
+      } catch {
+        // Ignore
+      }
+
       return NextResponse.json({
         configured: true,
         working: false,
+        authMethod,
         folderId,
         folderName: folderData.name || '',
         isInSharedDrive: false,
         sharedDrives,
-        message: 'Folder is in a personal Drive. Service Accounts cannot upload to personal folders. Please create a Shared Drive and add the service account as a member.',
-        setupSteps: [
-          '1. Go to Google Drive (drive.google.com)',
-          '2. Click "Shared Drives" → "New shared drive"',
-          '3. Name it "Arsip-Digikan Storage"',
-          `4. Add "${clientEmail}" as a Content manager`,
-          '5. Create a folder inside the Shared Drive (or use the Shared Drive root)',
-          '6. Update GOOGLE_DRIVE_FOLDER_ID with the new folder/drive ID',
-        ],
+        message: 'Service Account tidak bisa upload ke folder di My Drive (personal). Gunakan OAuth2 dengan refresh token atau buat Shared Drive.',
       });
     }
   } catch (error: unknown) {
@@ -95,6 +120,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       configured: true,
       working: false,
+      authMethod,
       folderId,
       message: `Failed to verify Google Drive setup: ${err.message || 'Unknown error'}`,
       errorCode: err.code,
