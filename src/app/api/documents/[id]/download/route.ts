@@ -48,7 +48,7 @@ export async function GET(
     if (isGoogleDriveFileId(pdfRef)) {
       const { downloadFromDrive } = await import('@/lib/google-drive');
       const buffer = await downloadFromDrive(pdfRef);
-      const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+      const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
 
       return new NextResponse(arrayBuffer, {
         status: 200,
