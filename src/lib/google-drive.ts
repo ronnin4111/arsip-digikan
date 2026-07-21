@@ -88,7 +88,7 @@ async function getDrive(): Promise<DriveType> {
 
   driveInstance = google.drive({
     version: 'v3',
-    auth: auth as Parameters<typeof google.drive>[0]['auth'],
+    auth: auth as unknown as Parameters<typeof google.drive>[0]['auth'],
   });
 
   return driveInstance;

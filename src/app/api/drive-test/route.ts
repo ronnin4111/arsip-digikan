@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
       });
       drive = google.drive({
         version: 'v3',
-        auth: client as Parameters<typeof google.drive>[0]['auth'],
+        auth: client as unknown as Parameters<typeof google.drive>[0]['auth'],
       });
     } else {
       const { JWT } = await import('google-auth-library');
