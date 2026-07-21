@@ -49,9 +49,9 @@ export async function GET(
     if (isGoogleDriveFileId(pdfRef)) {
       const { downloadFromDrive } = await import('@/lib/google-drive');
       const buffer = await downloadFromDrive(pdfRef);
-      const uint8 = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+      const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
 
-      return new NextResponse(uint8, {
+      return new NextResponse(arrayBuffer, {
         status: 200,
         headers: {
           'Content-Type': 'application/pdf',
@@ -71,13 +71,12 @@ export async function GET(
       }
 
       const arrayBuffer = await response.arrayBuffer();
-      const uint8 = new Uint8Array(arrayBuffer);
-      return new NextResponse(uint8, {
+      return new NextResponse(arrayBuffer, {
         status: 200,
         headers: {
           'Content-Type': 'application/pdf',
           'Content-Disposition': `inline; filename="${document.title}.pdf"`,
-          'Content-Length': uint8.length.toString(),
+          'Content-Length': arrayBuffer.byteLength.toString(),
           'Cache-Control': 'private, max-age=3600',
         },
       });
