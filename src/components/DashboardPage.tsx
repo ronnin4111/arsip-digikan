@@ -437,6 +437,7 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                   <option value="Seksi Pengolahan dan Pemasaran ikan">
                     Seksi Pengolahan dan Pemasaran ikan
                   </option>
+                  <option value="Bidang Perikanan">Bidang Perikanan</option>
                 </select>
                 <Input
                   type="date"
@@ -710,6 +711,7 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                     <option value="Seksi Pengolahan dan Pemasaran ikan">
                       Seksi Pengolahan dan Pemasaran ikan
                     </option>
+                    <option value="Bidang Perikanan">Bidang Perikanan</option>
                   </select>
                 </div>
                 <div className="space-y-2">

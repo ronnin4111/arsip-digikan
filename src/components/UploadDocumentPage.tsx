@@ -132,6 +132,7 @@ export default function UploadDocument({ onBack, onSuccess }: UploadDocumentProp
                     <option value="Seksi Pengolahan dan Pemasaran ikan">
                       Seksi Pengolahan dan Pemasaran ikan
                     </option>
+                    <option value="Bidang Perikanan">Bidang Perikanan</option>
                   </select>
                 </div>
 
