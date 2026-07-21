@@ -44,18 +44,22 @@ export async function GET(
 
     const pdfRef = document.pdfFilename;
 
-    // Google Drive file ID → redirect to download URL
+    // Google Drive file ID → download the file and stream it as attachment
     if (isGoogleDriveFileId(pdfRef)) {
-      // Dynamic import - only loads googleapis when downloading a Drive file
-      const { getDownloadUrl } = await import('@/lib/blob');
-      const downloadUrl = await getDownloadUrl(pdfRef);
-      if (downloadUrl) {
-        return NextResponse.redirect(downloadUrl);
-      }
-      return NextResponse.json({ error: 'Gagal membuat link unduhan' }, { status: 500 });
+      const { downloadFromDrive } = await import('@/lib/google-drive');
+      const buffer = await downloadFromDrive(pdfRef);
+
+      return new NextResponse(buffer, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="${document.title}.pdf"`,
+          'Content-Length': buffer.length.toString(),
+        },
+      });
     }
 
-    // Vercel Blob URL → redirect directly
+    // Vercel Blob URL → redirect directly for download
     if (isBlobUrl(pdfRef)) {
       return NextResponse.redirect(pdfRef);
     }

@@ -44,20 +44,41 @@ export async function GET(
 
     const pdfRef = document.pdfFilename;
 
-    // Google Drive file ID → redirect to Google Drive preview
+    // Google Drive file ID → download the file and stream it directly
+    // We can't use redirect because iframes can't display Google Drive URLs (X-Frame-Options)
     if (isGoogleDriveFileId(pdfRef)) {
-      // Dynamic import - only loads googleapis when previewing a Drive file
-      const { getPreviewUrl } = await import('@/lib/blob');
-      const previewUrl = await getPreviewUrl(pdfRef);
-      if (previewUrl) {
-        return NextResponse.redirect(previewUrl);
-      }
-      return NextResponse.json({ error: 'Gagal membuat link pratinjau' }, { status: 500 });
+      const { downloadFromDrive } = await import('@/lib/google-drive');
+      const buffer = await downloadFromDrive(pdfRef);
+
+      return new NextResponse(buffer, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `inline; filename="${document.title}.pdf"`,
+          'Content-Length': buffer.length.toString(),
+          'Cache-Control': 'private, max-age=3600',
+        },
+      });
     }
 
-    // Vercel Blob URL → redirect directly
+    // Vercel Blob URL → fetch the file and stream it
+    // We proxy it to avoid iframe issues with cross-origin blob URLs
     if (isBlobUrl(pdfRef)) {
-      return NextResponse.redirect(pdfRef);
+      const response = await fetch(pdfRef);
+      if (!response.ok) {
+        return NextResponse.json({ error: 'Gagal mengambil file dari storage' }, { status: 500 });
+      }
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      return new NextResponse(buffer, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `inline; filename="${document.title}.pdf"`,
+          'Content-Length': buffer.length.toString(),
+          'Cache-Control': 'private, max-age=3600',
+        },
+      });
     }
 
     return NextResponse.json({ error: 'File PDF tidak ditemukan' }, { status: 404 });

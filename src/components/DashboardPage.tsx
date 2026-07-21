@@ -594,16 +594,32 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
           <div className="bg-white w-full max-w-4xl max-h-[90vh] flex flex-col rounded-none">
             <div className="flex items-center justify-between p-4 border-b border-slate-200">
               <h3 className="font-bold text-lg text-slate-800 truncate pr-4">{previewDoc.title}</h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setPreviewDoc(null)}
-                className="shrink-0"
-              >
-                <X className="w-5 h-5" />
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs h-8"
+                  onClick={() => {
+                    const a = document.createElement('a');
+                    a.href = `/api/documents/${previewDoc.id}/download?token=${token}`;
+                    a.download = `${previewDoc.title}.pdf`;
+                    a.click();
+                  }}
+                >
+                  <Download className="w-3 h-3 mr-1" />
+                  Unduh
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setPreviewDoc(null)}
+                  className="shrink-0"
+                >
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
             </div>
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden relative">
               <iframe
                 src={`/api/documents/${previewDoc.id}/preview?token=${token}`}
                 className="w-full h-[70vh]"
