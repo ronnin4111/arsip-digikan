@@ -21,7 +21,7 @@ export default function UploadDocument({ onBack, onSuccess }: UploadDocumentProp
     type: 'INCOMING',
     title: '',
     reference_number: '',
-    category: 'Biasa',
+    category: '',
     seksi: 'Bidang Perikanan',
     sender: '',
     recipient: 'Kepala DPKPP Kab. Mempawah',
