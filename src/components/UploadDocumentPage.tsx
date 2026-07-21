@@ -22,7 +22,7 @@ export default function UploadDocument({ onBack, onSuccess }: UploadDocumentProp
     title: '',
     reference_number: '',
     category: 'Biasa',
-    seksi: 'Perikanan Tangkap',
+    seksi: 'Bidang Perikanan',
     sender: '',
     recipient: 'Kepala DPKPP Kab. Mempawah',
     date: new Date().toISOString().split('T')[0],
