@@ -24,7 +24,7 @@ export default function UploadDocument({ onBack, onSuccess }: UploadDocumentProp
     category: 'Biasa',
     seksi: 'Perikanan Tangkap',
     sender: '',
-    recipient: '',
+    recipient: 'Kepala DPKPP Kab. Mempawah',
     date: new Date().toISOString().split('T')[0],
   });
   const [file, setFile] = useState<File | null>(null);
