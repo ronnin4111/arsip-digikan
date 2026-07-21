@@ -2,7 +2,7 @@
 agent/
 .agents/
 db/
-download/
+# download/  # REMOVED - was incorrectly matching src/app/api/documents/[id]/download/
 mini-services/
 skills/
 tool-results/

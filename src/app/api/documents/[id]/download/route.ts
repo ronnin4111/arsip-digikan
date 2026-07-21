@@ -48,13 +48,14 @@ export async function GET(
     if (isGoogleDriveFileId(pdfRef)) {
       const { downloadFromDrive } = await import('@/lib/google-drive');
       const buffer = await downloadFromDrive(pdfRef);
+      const uint8 = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
 
-      return new NextResponse(buffer, {
+      return new NextResponse(uint8, {
         status: 200,
         headers: {
           'Content-Type': 'application/pdf',
           'Content-Disposition': `attachment; filename="${document.title}.pdf"`,
-          'Content-Length': buffer.length.toString(),
+          'Content-Length': uint8.length.toString(),
         },
       });
     }
