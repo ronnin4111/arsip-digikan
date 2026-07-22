@@ -30,6 +30,7 @@ export interface Document {
   pdf_filename: string;
   status: DocumentStatus;
   text_content?: string | null;
+  physical_location?: string | null;
   deleted_at?: string | null;
   created_at: string;
   created_by: number;

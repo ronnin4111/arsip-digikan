@@ -37,6 +37,7 @@ model Document {
   // New fields (additive, all nullable / default)
   status         String   @default("DIARSIPKAN") // DITERIMA | DIPROSES | SELESAI | DIARSIPKAN
   textContent    String?  @map("text_content") // Full-text searchable content (extracted from PDF)
+  physicalLocation String? @map("physical_location") // Free-text: where the physical paper archive is stored (e.g. "Lemari A-3 · Rak 2 · Map Hijau · Urut 12")
   deletedAt      DateTime? @map("deleted_at") // Soft delete timestamp
   createdAt      DateTime @default(now()) @map("created_at")
   createdBy      Int?     @map("created_by")

@@ -25,6 +25,7 @@ export async function GET(
       recipient: true,
       date: true,
       status: true,
+      physicalLocation: true,
       createdAt: true,
     },
   });
@@ -54,6 +55,7 @@ export async function GET(
       recipient: doc.recipient,
       date: doc.date,
       status: doc.status,
+      physicalLocation: doc.physicalLocation,
       createdAt: doc.createdAt,
     },
   });

@@ -12,6 +12,7 @@ import {
   Building2,
   Tag,
   ArrowRightLeft,
+  MapPin,
 } from 'lucide-react';
 
 interface VerifyResult {
@@ -28,6 +29,7 @@ interface VerifyResult {
     recipient: string;
     date: string;
     status: string;
+    physicalLocation: string | null;
     createdAt: string;
   };
 }
@@ -144,6 +146,22 @@ export default function VerifyPage() {
                     <Field label="Penerima" value={data.document.recipient} />
                   )}
                 </div>
+
+                {data.document.physicalLocation && (
+                  <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3.5 flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+                      <MapPin className="w-4 h-4 text-amber-700" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-0.5">
+                        Lokasi Arsip Fisik
+                      </p>
+                      <p className="text-sm font-semibold text-slate-800 leading-snug">
+                        {data.document.physicalLocation}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2">
                   <span

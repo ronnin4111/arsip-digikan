@@ -17,6 +17,7 @@ function transformDoc(doc: any) {
     pdf_filename: doc.pdfFilename,
     status: doc.status,
     text_content: doc.textContent,
+    physical_location: doc.physicalLocation,
     deleted_at: doc.deletedAt,
     created_at: doc.createdAt,
     created_by: doc.createdBy,
@@ -129,6 +130,7 @@ export async function POST(request: NextRequest) {
     const date = formData.get('date') as string;
     const seksi = (formData.get('seksi') as string) || '';
     const status = (formData.get('status') as string) || 'DIARSIPKAN';
+    const physicalLocation = ((formData.get('physical_location') as string) || (formData.get('physicalLocation') as string) || '').trim() || null;
     const file = (formData.get('pdf') as File | null) || (formData.get('file') as File | null);
 
     // Additional PDF attachments (multi-file feature)
@@ -198,6 +200,7 @@ export async function POST(request: NextRequest) {
         seksi,
         status,
         textContent,
+        physicalLocation,
         createdBy: authUser.id,
       },
     });

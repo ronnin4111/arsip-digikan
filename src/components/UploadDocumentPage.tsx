@@ -16,6 +16,7 @@ import {
   CloudUpload,
   AlertTriangle,
   Plus,
+  MapPin,
 } from 'lucide-react';
 
 interface UploadDocumentProps {
@@ -46,6 +47,7 @@ export default function UploadDocument({ onBack, onSuccess }: UploadDocumentProp
     recipient: 'Kepala DPKPP Kab. Mempawah',
     date: new Date().toISOString().split('T')[0],
     status: 'DIARSIPKAN',
+    physical_location: '',
   });
   const [file, setFile] = useState<File | null>(null);
   const [attachments, setAttachments] = useState<File[]>([]);
@@ -368,6 +370,22 @@ export default function UploadDocument({ onBack, onSuccess }: UploadDocumentProp
                     onChange={(e) => setFormData({ ...formData, recipient: e.target.value })}
                     placeholder="Nama penerima atau instansi"
                   />
+                </div>
+
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-slate-500" />
+                    Lokasi Arsip Fisik <span className="text-slate-400 normal-case font-normal">(opsional)</span>
+                  </label>
+                  <Input
+                    className="h-11 bg-slate-50 border-slate-200 focus:bg-white focus-ring"
+                    value={formData.physical_location}
+                    onChange={(e) => setFormData({ ...formData, physical_location: e.target.value })}
+                    placeholder="cth: Lemari A-3 · Rak 2 · Map Hijau · Urut 12"
+                  />
+                  <p className="text-[11px] text-slate-400 leading-snug">
+                    Catat lokasi penyimpanan dokumen fisik (kertas) — lemari, rak, map, atau nomor urut. Membantu menemukan dokumen asli dengan cepat.
+                  </p>
                 </div>
               </div>
 

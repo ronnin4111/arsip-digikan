@@ -36,6 +36,11 @@ import {
   RotateCcw,
   QrCode,
   FilePlus,
+  MapPin,
+  ChevronDown,
+  ChevronUp,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import DriveSetup from '@/components/DriveSetup';
 import { format } from 'date-fns';
@@ -62,6 +67,9 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
   const [darkMode, setDarkMode] = useState(false);
 
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
+  const [previewShowDetails, setPreviewShowDetails] = useState(true);
+  const [previewShowQr, setPreviewShowQr] = useState(true);
+  const [previewFullscreen, setPreviewFullscreen] = useState(false);
   const [editDoc, setEditDoc] = useState<Document | null>(null);
   const [showLogs, setShowLogs] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
@@ -1168,13 +1176,23 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
       {previewDoc && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in-up"
-          onClick={() => setPreviewDoc(null)}
+          onClick={() => {
+            setPreviewDoc(null);
+            setPreviewShowDetails(true);
+            setPreviewShowQr(true);
+            setPreviewFullscreen(false);
+          }}
         >
           <div
-            className="bg-white w-full max-w-4xl max-h-[90vh] flex flex-col rounded-2xl shadow-soft-lg overflow-hidden animate-scale-in"
+            className={`bg-white flex flex-col rounded-2xl shadow-soft-lg overflow-hidden animate-scale-in transition-all duration-300 ${
+              previewFullscreen
+                ? 'w-full max-w-[95vw] h-[95vh]'
+                : 'w-full max-w-4xl max-h-[90vh]'
+            }`}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-200 bg-slate-50/50">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-200 bg-slate-50/50 flex-shrink-0">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center flex-shrink-0">
                   <FileText className="w-4 h-4 text-white" />
@@ -1183,7 +1201,40 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                   {previewDoc.title}
                 </h3>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                {/* Toggle: Detail */}
+                <Button
+                  variant={previewShowDetails ? 'outline' : 'ghost'}
+                  size="sm"
+                  className={`text-xs h-9 rounded-lg ${previewShowDetails ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : ''}`}
+                  onClick={() => setPreviewShowDetails((v) => !v)}
+                  title="Tampilkan/sembunyikan keterangan dokumen"
+                >
+                  {previewShowDetails ? <ChevronUp className="w-3.5 h-3.5 mr-1.5" /> : <ChevronDown className="w-3.5 h-3.5 mr-1.5" />}
+                  Detail
+                </Button>
+                {/* Toggle: QR */}
+                <Button
+                  variant={previewShowQr ? 'outline' : 'ghost'}
+                  size="sm"
+                  className={`text-xs h-9 rounded-lg ${previewShowQr ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : ''}`}
+                  onClick={() => setPreviewShowQr((v) => !v)}
+                  title="Tampilkan/sembunyikan QR Code"
+                >
+                  <QrCode className="w-3.5 h-3.5 mr-1.5" />
+                  QR
+                </Button>
+                {/* Toggle: Fullscreen */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setPreviewFullscreen((v) => !v)}
+                  className="h-9 w-9 p-0 rounded-lg hover:bg-slate-100"
+                  title={previewFullscreen ? 'Keluar dari layar penuh' : 'Layar penuh'}
+                >
+                  {previewFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                </Button>
+                {/* Unduh */}
                 <Button
                   variant="outline"
                   size="sm"
@@ -1198,105 +1249,133 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                   <Download className="w-3.5 h-3.5 mr-1.5" />
                   Unduh
                 </Button>
+                {/* Close */}
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setPreviewDoc(null)}
+                  onClick={() => {
+                    setPreviewDoc(null);
+                    setPreviewShowDetails(true);
+                    setPreviewShowQr(true);
+                    setPreviewFullscreen(false);
+                  }}
                   className="h-9 w-9 p-0 rounded-lg hover:bg-slate-100"
                 >
                   <X className="w-5 h-5" />
                 </Button>
               </div>
             </div>
-            <div className="flex-1 overflow-hidden relative bg-slate-100">
+
+            {/* Body: iframe fills remaining space + optional QR overlay */}
+            <div className="flex-1 overflow-hidden relative bg-slate-100 min-h-0">
               <iframe
                 src={`/api/documents/${previewDoc.id}/preview?token=${token}`}
-                className="w-full h-[70vh]"
+                className="w-full h-full"
                 title={previewDoc.title}
               />
-            </div>
-            <div className="p-4 sm:p-5 border-t border-slate-200 bg-slate-50/50">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Tipe</p>
-                  <p className="font-semibold text-slate-800">
-                    {previewDoc.type === 'INCOMING' ? 'Surat Masuk' : previewDoc.type === 'OUTGOING' ? 'Surat Keluar' : previewDoc.type === 'SURAT_TUGAS' ? 'Surat Tugas' : 'Surat Keputusan'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">No. Referensi</p>
-                  <p className="font-semibold text-slate-800 font-mono">{previewDoc.reference_number}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Kategori</p>
-                  <p className="font-semibold text-slate-800">{previewDoc.category}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Tanggal</p>
-                  <p className="font-semibold text-slate-800 tabular-nums">{previewDoc.date}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Status</p>
-                  <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full ${
-                    previewDoc.status === 'DITERIMA'
-                      ? 'bg-blue-50 text-blue-700 border border-blue-100'
-                      : previewDoc.status === 'DIPROSES'
-                        ? 'bg-amber-50 text-amber-700 border border-amber-100'
-                        : previewDoc.status === 'SELESAI'
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                          : 'bg-slate-50 text-slate-700 border border-slate-100'
-                  }`}>
-                    {previewDoc.status || 'DIARSIPKAN'}
-                  </span>
-                </div>
-                {previewDoc.sender && (
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Pengirim</p>
-                    <p className="font-semibold text-slate-800">{previewDoc.sender}</p>
-                  </div>
-                )}
-                {previewDoc.recipient && (
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Penerima</p>
-                    <p className="font-semibold text-slate-800">{previewDoc.recipient}</p>
-                  </div>
-                )}
-                <div className="col-span-2 sm:col-span-1">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Seksi</p>
-                  <p className="font-semibold text-slate-800">{previewDoc.seksi}</p>
-                </div>
-              </div>
-
-              {/* QR Code + Attachments row */}
-              <div className="mt-4 pt-4 border-t border-slate-200 flex flex-col sm:flex-row gap-4">
-                {/* QR Code */}
-                <div className="flex items-center gap-3 flex-shrink-0">
+              {/* Floating QR overlay — doesn't take vertical space */}
+              {previewShowQr && (
+                <div className="absolute bottom-3 right-3 bg-white rounded-xl shadow-lg border border-slate-200 p-2.5 flex items-center gap-2.5 max-w-[280px] animate-fade-in-up">
                   <img
                     src={`/api/documents/${previewDoc.id}/qr?token=${token}`}
                     alt="QR Code"
-                    className="w-24 h-24 rounded-lg border border-slate-200 bg-white"
+                    className="w-16 h-16 rounded-md"
                   />
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-1">
-                      <QrCode className="w-3 h-3" />
+                  <div className="min-w-0">
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                      <QrCode className="w-2.5 h-2.5" />
                       QR Verifikasi
                     </p>
-                    <p className="text-xs text-slate-600 leading-snug">
-                      Scan untuk verifikasi keaslian via halaman publik
+                    <p className="text-[10px] text-slate-600 leading-tight mt-0.5">
+                      Scan untuk verifikasi keaslian
                     </p>
                     <a
                       href={`/verify/${encodeURIComponent(previewDoc.reference_number)}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center mt-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+                      className="inline-block text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 mt-0.5"
                     >
-                      Buka halaman verifikasi →
+                      Buka halaman →
                     </a>
                   </div>
+                  <button
+                    onClick={() => setPreviewShowQr(false)}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-slate-700 text-white flex items-center justify-center hover:bg-slate-800"
+                    title="Sembunyikan QR"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Collapsible Detail footer */}
+            {previewShowDetails && (
+              <div className="p-4 sm:p-5 border-t border-slate-200 bg-slate-50/50 flex-shrink-0 max-h-[35vh] overflow-y-auto">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Tipe</p>
+                    <p className="font-semibold text-slate-800">
+                      {previewDoc.type === 'INCOMING' ? 'Surat Masuk' : previewDoc.type === 'OUTGOING' ? 'Surat Keluar' : previewDoc.type === 'SURAT_TUGAS' ? 'Surat Tugas' : 'Surat Keputusan'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">No. Referensi</p>
+                    <p className="font-semibold text-slate-800 font-mono">{previewDoc.reference_number}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Kategori</p>
+                    <p className="font-semibold text-slate-800">{previewDoc.category}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Tanggal</p>
+                    <p className="font-semibold text-slate-800 tabular-nums">{previewDoc.date}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Status</p>
+                    <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full ${
+                      previewDoc.status === 'DITERIMA'
+                        ? 'bg-blue-50 text-blue-700 border border-blue-100'
+                        : previewDoc.status === 'DIPROSES'
+                          ? 'bg-amber-50 text-amber-700 border border-amber-100'
+                          : previewDoc.status === 'SELESAI'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                            : 'bg-slate-50 text-slate-700 border border-slate-100'
+                    }`}>
+                      {previewDoc.status || 'DIARSIPKAN'}
+                    </span>
+                  </div>
+                  {previewDoc.sender && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Pengirim</p>
+                      <p className="font-semibold text-slate-800">{previewDoc.sender}</p>
+                    </div>
+                  )}
+                  {previewDoc.recipient && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Penerima</p>
+                      <p className="font-semibold text-slate-800">{previewDoc.recipient}</p>
+                    </div>
+                  )}
+                  <div className="col-span-2 sm:col-span-1">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Seksi</p>
+                    <p className="font-semibold text-slate-800">{previewDoc.seksi}</p>
+                  </div>
+                  {previewDoc.physical_location && (
+                    <div className="col-span-2 sm:col-span-2">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-1">
+                        <MapPin className="w-3 h-3" />
+                        Lokasi Arsip Fisik
+                      </p>
+                      <p className="font-semibold text-slate-800 bg-amber-50/60 border border-amber-100 rounded-lg px-2 py-1 inline-block">
+                        {previewDoc.physical_location}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
-                {/* Attachments list */}
-                <div className="flex-1 min-w-0">
+                {/* Attachments row */}
+                <div className="mt-4 pt-4 border-t border-slate-200">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1">
                     <FilePlus className="w-3 h-3" />
                     Lampiran ({previewDoc.attachments?.length || 0})
@@ -1318,7 +1397,7 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                   )}
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}
@@ -1439,6 +1518,18 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                     className="h-11 bg-slate-50 border-slate-200 focus:bg-white focus-ring"
                     value={editDoc.recipient}
                     onChange={(e) => setEditDoc({ ...editDoc, recipient: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-slate-500" />
+                    Lokasi Arsip Fisik
+                  </label>
+                  <Input
+                    className="h-11 bg-slate-50 border-slate-200 focus:bg-white focus-ring"
+                    value={editDoc.physical_location || ''}
+                    onChange={(e) => setEditDoc({ ...editDoc, physical_location: e.target.value })}
+                    placeholder="cth: Lemari A-3 · Rak 2 · Map Hijau · Urut 12"
                   />
                 </div>
               </div>

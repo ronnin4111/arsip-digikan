@@ -17,6 +17,7 @@ function transformDoc(doc: any) {
     pdf_filename: doc.pdfFilename,
     status: doc.status,
     text_content: doc.textContent,
+    physical_location: doc.physicalLocation,
     deleted_at: doc.deletedAt,
     created_at: doc.createdAt,
     created_by: doc.createdBy,
@@ -58,6 +59,12 @@ export async function PUT(
     const body = await request.json();
     const { type, title, reference_number, referenceNumber, category, sender, recipient, date, seksi, status } = body;
     const refNum = (reference_number || referenceNumber || '').trim();
+    // Detect whether the caller sent either snake_case or camelCase physicalLocation key.
+    // Only update the column when the key was actually present in the body — otherwise
+    // we'd wipe an existing value just because the caller omitted the field.
+    const hasPhysicalLocation = Object.prototype.hasOwnProperty.call(body, 'physical_location') || Object.prototype.hasOwnProperty.call(body, 'physicalLocation');
+    const physicalLocRaw = body.physical_location ?? body.physicalLocation ?? null;
+    const physicalLocationValue = typeof physicalLocRaw === 'string' && physicalLocRaw.trim() === '' ? null : physicalLocRaw;
 
     // === Duplicate reference number detection (skip current document) ===
     if (refNum) {
@@ -93,6 +100,7 @@ export async function PUT(
         ...(date !== undefined && { date }),
         ...(seksi !== undefined && { seksi }),
         ...(status !== undefined && { status }),
+        ...(physicalLocationValue !== undefined && hasPhysicalLocation && { physicalLocation: physicalLocationValue }),
       },
     });
 
