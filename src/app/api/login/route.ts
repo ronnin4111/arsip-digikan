@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { db } from '@/lib/db';
 import { signToken } from '@/lib/auth';
+import { logAction } from '@/lib/log';
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,6 +21,12 @@ export async function POST(request: NextRequest) {
     });
 
     if (!user) {
+      await logAction({
+        action: 'FAILED_LOGIN',
+        username,
+        request,
+        detail: `Unknown username: ${username}`,
+      });
       return NextResponse.json(
         { error: 'Username atau password salah' },
         { status: 401 }
@@ -28,6 +35,13 @@ export async function POST(request: NextRequest) {
 
     const isPasswordValid = bcrypt.compareSync(password, user.passwordHash);
     if (!isPasswordValid) {
+      await logAction({
+        action: 'FAILED_LOGIN',
+        userId: user.id,
+        username: user.username,
+        request,
+        detail: 'Wrong password',
+      });
       return NextResponse.json(
         { error: 'Username atau password salah' },
         { status: 401 }
@@ -38,6 +52,13 @@ export async function POST(request: NextRequest) {
       id: user.id,
       username: user.username,
       role: user.role,
+    });
+
+    await logAction({
+      action: 'LOGIN',
+      userId: user.id,
+      username: user.username,
+      request,
     });
 
     return NextResponse.json({

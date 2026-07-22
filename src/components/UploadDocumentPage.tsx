@@ -15,6 +15,7 @@ import {
   X,
   CloudUpload,
   AlertTriangle,
+  Plus,
 } from 'lucide-react';
 
 interface UploadDocumentProps {
@@ -44,8 +45,10 @@ export default function UploadDocument({ onBack, onSuccess }: UploadDocumentProp
     sender: '',
     recipient: 'Kepala DPKPP Kab. Mempawah',
     date: new Date().toISOString().split('T')[0],
+    status: 'DIARSIPKAN',
   });
   const [file, setFile] = useState<File | null>(null);
+  const [attachments, setAttachments] = useState<File[]>([]);
 
   // === Real-time duplicate reference number check ===
   // Debounced: waits 400ms after the user stops typing before hitting the API.
@@ -97,6 +100,28 @@ export default function UploadDocument({ onBack, onSuccess }: UploadDocumentProp
     handleFileChange(f);
   };
 
+  const handleAttachmentChange = (files: FileList | null) => {
+    if (!files) return;
+    const valid: File[] = [];
+    for (const f of Array.from(files)) {
+      if (f.type !== 'application/pdf') {
+        setError(`File "${f.name}" bukan PDF, dilewati`);
+        continue;
+      }
+      if (f.size > 10 * 1024 * 1024) {
+        setError(`File "${f.name}" melebihi 10MB, dilewati`);
+        continue;
+      }
+      valid.push(f);
+    }
+    setError('');
+    setAttachments((prev) => [...prev, ...valid]);
+  };
+
+  const removeAttachment = (idx: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== idx));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file) {
@@ -112,6 +137,9 @@ export default function UploadDocument({ onBack, onSuccess }: UploadDocumentProp
       data.append(key, value);
     });
     data.append('pdf', file);
+    attachments.forEach((att, idx) => {
+      data.append(`attachment_${idx}`, att);
+    });
 
     try {
       const res = await fetch('/api/documents', {
@@ -192,6 +220,7 @@ export default function UploadDocument({ onBack, onSuccess }: UploadDocumentProp
                     <option value="INCOMING">Surat Masuk</option>
                     <option value="OUTGOING">Surat Keluar</option>
                     <option value="SURAT_TUGAS">Surat Tugas</option>
+                    <option value="SURAT_KEPUTUSAN">Surat Keputusan</option>
                   </select>
                 </div>
 
@@ -212,6 +241,7 @@ export default function UploadDocument({ onBack, onSuccess }: UploadDocumentProp
                     <option value="Biasa" />
                     <option value="Rahasia" />
                     <option value="Surat Tugas" />
+                    <option value="Surat Keputusan" />
                   </datalist>
                 </div>
 
@@ -230,6 +260,22 @@ export default function UploadDocument({ onBack, onSuccess }: UploadDocumentProp
                       Seksi Pengolahan dan Pemasaran ikan
                     </option>
                     <option value="Bidang Perikanan">Bidang Perikanan</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                    Status Surat
+                  </label>
+                  <select
+                    className="flex h-11 w-full rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus-ring px-3 py-2 text-sm outline-none transition-all cursor-pointer"
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  >
+                    <option value="DITERIMA">Diterima</option>
+                    <option value="DIPROSES">Diproses</option>
+                    <option value="SELESAI">Selesai</option>
+                    <option value="DIARSIPKAN">Diarsipkan</option>
                   </select>
                 </div>
 
@@ -394,6 +440,63 @@ export default function UploadDocument({ onBack, onSuccess }: UploadDocumentProp
                     >
                       <X className="w-4 h-4" />
                     </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* Additional Attachments (Multi-file) */}
+              <div className="pt-5 border-t border-slate-100">
+                <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-3 block flex items-center justify-between">
+                  <span>Lampiran Tambahan (Opsional)</span>
+                  <span className="text-[10px] text-slate-400 normal-case font-normal">
+                    Boleh lebih dari 1 file PDF
+                  </span>
+                </label>
+
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  multiple
+                  className="hidden"
+                  id="attachment-input"
+                  onChange={(e) => {
+                    handleAttachmentChange(e.target.files);
+                    e.target.value = '';
+                  }}
+                />
+                <label
+                  htmlFor="attachment-input"
+                  className="flex items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/40 hover:border-indigo-300 hover:bg-indigo-50/30 px-4 py-3 text-sm text-slate-600 hover:text-indigo-700 font-medium transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  Tambah Lampiran PDF
+                </label>
+
+                {attachments.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {attachments.map((att, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center gap-3 bg-slate-50 rounded-xl p-2.5 border border-slate-100"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center flex-shrink-0">
+                          <FileText className="w-4 h-4 text-slate-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-slate-700 truncate">{att.name}</p>
+                          <p className="text-[10px] text-slate-400">
+                            {(att.size / 1024 / 1024).toFixed(2)} MB · Lampiran
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeAttachment(idx)}
+                          className="h-7 w-7 flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

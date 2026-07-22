@@ -1,5 +1,5 @@
 // Prisma schema — PostgreSQL (Neon)
-// Storage backend: Google Drive (Service Account)
+// Storage backend: Google Drive (OAuth2 primary, Service Account fallback)
 
 generator client {
   provider = "prisma-client-js"
@@ -18,13 +18,14 @@ model User {
   role         String    @default("user")
   documents    Document[]
   logs         Log[]
+  bookmarks    Bookmark[]
 
   @@map("users")
 }
 
 model Document {
   id             Int      @id @default(autoincrement())
-  type           String   // INCOMING or OUTGOING
+  type           String   // INCOMING | OUTGOING | SURAT_TUGAS | SURAT_KEPUTUSAN
   title          String
   referenceNumber String  @map("reference_number")
   category       String
@@ -33,24 +34,61 @@ model Document {
   date           String
   pdfFilename    String   @map("pdf_filename")
   seksi          String   @default("")
+  // New fields (additive, all nullable / default)
+  status         String   @default("DIARSIPKAN") // DITERIMA | DIPROSES | SELESAI | DIARSIPKAN
+  textContent    String?  @map("text_content") // Full-text searchable content (extracted from PDF)
+  deletedAt      DateTime? @map("deleted_at") // Soft delete timestamp
   createdAt      DateTime @default(now()) @map("created_at")
   createdBy      Int?     @map("created_by")
   user           User?    @relation(fields: [createdBy], references: [id], onDelete: SetNull)
   logs           Log[]
+  attachments    Attachment[]
+  bookmarks      Bookmark[]
 
   @@map("documents")
 }
 
+model Attachment {
+  id          Int      @id @default(autoincrement())
+  documentId  Int      @map("document_id")
+  filename    String   // Original filename (display)
+  storageRef  String   @map("storage_ref") // Drive file ID or Blob URL
+  fileSize    Int      @default(0) @map("file_size")
+  mimeType    String   @default("application/pdf") @map("mime_type")
+  createdAt   DateTime @default(now()) @map("created_at")
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@map("attachments")
+}
+
+model Bookmark {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @map("user_id")
+  documentId  Int      @map("document_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, documentId])
+  @@index([userId])
+  @@map("bookmarks")
+}
+
 model Log {
   id            Int      @id @default(autoincrement())
-  action        String
+  action        String   // UPLOAD | UPDATE | DELETE | RESTORE | PURGE | VIEW | DOWNLOAD | LOGIN | LOGOUT | FAILED_LOGIN
   documentId    Int?     @map("document_id")
   documentTitle String?  @map("document_title")
   userId        Int?     @map("user_id")
   username      String?
+  ip            String?  // Optional: caller IP
+  detail        String?  // Optional: extra context
   timestamp     DateTime @default(now())
   user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   document      Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
 
+  @@index([action])
+  @@index([timestamp])
   @@map("logs")
 }

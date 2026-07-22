@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/components/AuthContext';
-import { Document, LogEntry, StorageUsage } from '@/lib/types';
+import { Document, LogEntry, StorageUsage, DocumentStatus } from '@/lib/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,14 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Star,
+  Gavel,
+  Sun,
+  Moon,
+  Trash,
+  RotateCcw,
+  QrCode,
+  FilePlus,
 } from 'lucide-react';
 import DriveSetup from '@/components/DriveSetup';
 import { format } from 'date-fns';
@@ -45,7 +53,13 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
   const [typeFilter, setTypeFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
+  const [dateFromFilter, setDateFromFilter] = useState('');
+  const [dateToFilter, setDateToFilter] = useState('');
   const [seksiFilter, setSeksiFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [showBookmarksOnly, setShowBookmarksOnly] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
 
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
   const [editDoc, setEditDoc] = useState<Document | null>(null);
@@ -76,7 +90,12 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
     if (typeFilter) params.append('type', typeFilter);
     if (categoryFilter) params.append('category', categoryFilter);
     if (dateFilter) params.append('date', dateFilter);
+    if (dateFromFilter) params.append('dateFrom', dateFromFilter);
+    if (dateToFilter) params.append('dateTo', dateToFilter);
     if (seksiFilter) params.append('seksi', seksiFilter);
+    if (statusFilter) params.append('status', statusFilter);
+    if (showTrash) params.append('includeTrash', 'true');
+    if (showBookmarksOnly) params.append('bookmarkedOnly', 'true');
 
     fetch(`/api/documents?${params.toString()}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -85,7 +104,145 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
       .then(data => setDocuments(Array.isArray(data) ? data : []))
       .catch(() => setDocuments([]))
       .finally(() => setLoadingDocs(false));
-  }, [token, search, typeFilter, categoryFilter, dateFilter, seksiFilter, refreshKey]);
+  }, [token, search, typeFilter, categoryFilter, dateFilter, dateFromFilter, dateToFilter, seksiFilter, statusFilter, refreshKey, showTrash, showBookmarksOnly]);
+
+  // Dark mode persistence + apply class to documentElement
+  useEffect(() => {
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('darkMode') : null;
+    if (stored === 'true') {
+      setDarkMode(true);
+      document.documentElement.classList.add('dark');
+    }
+  }, []);
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('darkMode', 'true');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('darkMode', 'false');
+    }
+  }, [darkMode]);
+
+  // Quick date range filters
+  const setQuickDateRange = (months: number) => {
+    const today = new Date();
+    const to = today.toISOString().split('T')[0];
+    const from = new Date(today.getFullYear(), today.getMonth() - months + 1, 1).toISOString().split('T')[0];
+    setDateFromFilter(from);
+    setDateToFilter(to);
+    setDateFilter('');
+  };
+  const setThisYear = () => {
+    const year = new Date().getFullYear();
+    setDateFromFilter(`${year}-01-01`);
+    setDateToFilter(`${year}-12-31`);
+    setDateFilter('');
+  };
+  const clearDateFilters = () => {
+    setDateFilter('');
+    setDateFromFilter('');
+    setDateToFilter('');
+  };
+
+  // Toggle bookmark
+  const toggleBookmark = async (docId: number) => {
+    try {
+      const res = await fetch(`/api/documents/${docId}/bookmark`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDocuments(prev => prev.map(d => d.id === docId ? { ...d, bookmarked: data.bookmarked } : d));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Soft delete (move to trash)
+  const handleDelete = async (id: number) => {
+    if (!confirm('Pindahkan dokumen ke Trash? Anda bisa memulihkannya nanti.')) return;
+    try {
+      const res = await fetch(`/api/documents/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        refreshData();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Restore from trash
+  const handleRestore = async (id: number) => {
+    try {
+      const res = await fetch(`/api/documents/${id}/restore`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        refreshData();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Gagal memulihkan');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Permanently delete (purge)
+  const handlePurge = async (id: number) => {
+    if (!confirm('HAPUS PERMANEN? Dokumen dan file tidak bisa dikembalikan.')) return;
+    try {
+      const res = await fetch(`/api/documents/${id}/purge`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        refreshData();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Gagal menghapus permanen');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Logout with API log
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/logout', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch (e) {
+      // ignore
+    }
+    logout();
+  };
+
+  // Export current filtered data
+  const handleExport = async (format: 'xlsx' | 'csv') => {
+    const params = new URLSearchParams();
+    if (search) params.append('q', search);
+    if (typeFilter) params.append('type', typeFilter);
+    if (categoryFilter) params.append('category', categoryFilter);
+    if (dateFromFilter) params.append('dateFrom', dateFromFilter);
+    if (dateToFilter) params.append('dateTo', dateToFilter);
+    if (seksiFilter) params.append('seksi', seksiFilter);
+    if (statusFilter) params.append('status', statusFilter);
+    params.append('format', format);
+
+    const a = document.createElement('a');
+    a.href = `/api/documents/export?${params.toString()}&token=${token}`;
+    a.click();
+  };
 
   // Reset to page 1 whenever filters or page size change
   useEffect(() => {
@@ -224,21 +381,6 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Apakah Anda yakin ingin menghapus dokumen ini?')) return;
-    try {
-      const res = await fetch(`/api/documents/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        refreshData();
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editDoc) return;
@@ -324,6 +466,49 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
               <span className="hidden sm:inline">Log Aktivitas</span>
             </Button>
 
+            {/* Bookmark filter toggle */}
+            <Button
+              variant={showBookmarksOnly ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setShowBookmarksOnly((v) => !v)}
+              className={`h-9 text-xs font-semibold transition-all ${
+                showBookmarksOnly
+                  ? 'bg-amber-500 hover:bg-amber-600 border-amber-500 text-white'
+                  : 'text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
+              }`}
+              title="Tampilkan favorit saja"
+            >
+              <Star className={`w-3.5 h-3.5 sm:mr-1.5 ${showBookmarksOnly ? 'fill-white' : 'text-amber-500'}`} />
+              <span className="hidden sm:inline">Favorit</span>
+            </Button>
+
+            {/* Trash toggle */}
+            <Button
+              variant={showTrash ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setShowTrash((v) => !v)}
+              className={`h-9 text-xs font-semibold transition-all ${
+                showTrash
+                  ? 'bg-red-500 hover:bg-red-600 border-red-500 text-white'
+                  : 'text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
+              }`}
+              title="Lihat Trash"
+            >
+              <Trash className="w-3.5 h-3.5 sm:mr-1.5" />
+              <span className="hidden sm:inline">Trash</span>
+            </Button>
+
+            {/* Dark mode toggle */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setDarkMode((v) => !v)}
+              className="h-9 w-9 p-0 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+              title={darkMode ? 'Mode terang' : 'Mode gelap'}
+            >
+              {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </Button>
+
             <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50/80 border border-slate-200/60">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center text-white text-xs font-bold">
                 {user?.username?.charAt(0).toUpperCase() || 'U'}
@@ -339,7 +524,7 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
             <Button
               variant="ghost"
               size="sm"
-              onClick={logout}
+              onClick={handleLogout}
               className="h-9 w-9 p-0 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
             >
               <LogOut className="w-4 h-4" />
@@ -551,6 +736,7 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                     <option value="INCOMING">Surat Masuk</option>
                     <option value="OUTGOING">Surat Keluar</option>
                     <option value="SURAT_TUGAS">Surat Tugas</option>
+                    <option value="SURAT_KEPUTUSAN">Surat Keputusan</option>
                   </select>
                   <select
                     className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 focus-ring hover:border-slate-300 transition-colors cursor-pointer"
@@ -563,6 +749,7 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                     <option value="Biasa">Biasa</option>
                     <option value="Rahasia">Rahasia</option>
                     <option value="Surat Tugas">Surat Tugas</option>
+                    <option value="Surat Keputusan">Surat Keputusan</option>
                   </select>
                   <select
                     className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 focus-ring hover:border-slate-300 transition-colors cursor-pointer"
@@ -577,12 +764,99 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                     </option>
                     <option value="Bidang Perikanan">Bidang Perikanan</option>
                   </select>
-                  <Input
-                    type="date"
-                    className="h-11 w-auto bg-white border-slate-200 focus-ring"
-                    value={dateFilter}
-                    onChange={(e) => setDateFilter(e.target.value)}
-                  />
+                  <select
+                    className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 focus-ring hover:border-slate-300 transition-colors cursor-pointer"
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                  >
+                    <option value="">Semua Status</option>
+                    <option value="DITERIMA">Diterima</option>
+                    <option value="DIPROSES">Diproses</option>
+                    <option value="SELESAI">Selesai</option>
+                    <option value="DIARSIPKAN">Diarsipkan</option>
+                  </select>
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      type="date"
+                      className="h-11 w-auto bg-white border-slate-200 focus-ring"
+                      value={dateFromFilter}
+                      onChange={(e) => { setDateFromFilter(e.target.value); setDateFilter(''); }}
+                      title="Dari tanggal"
+                      aria-label="Dari tanggal"
+                    />
+                    <span className="text-xs text-slate-400">→</span>
+                    <Input
+                      type="date"
+                      className="h-11 w-auto bg-white border-slate-200 focus-ring"
+                      value={dateToFilter}
+                      onChange={(e) => { setDateToFilter(e.target.value); setDateFilter(''); }}
+                      title="Sampai tanggal"
+                      aria-label="Sampai tanggal"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setQuickDateRange(1)}
+                      className="h-9 text-[11px] font-semibold"
+                    >
+                      Bulan ini
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setQuickDateRange(3)}
+                      className="h-9 text-[11px] font-semibold"
+                    >
+                      3 Bulan
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={setThisYear}
+                      className="h-9 text-[11px] font-semibold"
+                    >
+                      Tahun ini
+                    </Button>
+                    {(dateFromFilter || dateToFilter || dateFilter) && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={clearDateFilters}
+                        className="h-9 text-[11px] font-semibold text-slate-500"
+                      >
+                        Reset
+                      </Button>
+                    )}
+                  </div>
+                  {/* Export buttons */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleExport('xlsx')}
+                    className="h-11 text-xs font-semibold text-emerald-700 border-emerald-200 hover:bg-emerald-50 hover:border-emerald-300 transition-all"
+                    title="Export ke Excel"
+                  >
+                    <Download className="w-3.5 h-3.5 mr-1.5" />
+                    Excel
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleExport('csv')}
+                    className="h-11 text-xs font-semibold text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all"
+                    title="Export ke CSV"
+                  >
+                    <Download className="w-3.5 h-3.5 mr-1.5" />
+                    CSV
+                  </Button>
                 </div>
               </div>
             </CardContent>
@@ -663,26 +937,49 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                                 ? 'bg-blue-50 text-blue-700 border border-blue-100'
                                 : doc.type === 'OUTGOING'
                                   ? 'bg-amber-50 text-amber-700 border border-amber-100'
-                                  : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                  : doc.type === 'SURAT_TUGAS'
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                    : 'bg-violet-50 text-violet-700 border border-violet-100'
                             }`}
                           >
                             {doc.type === 'INCOMING' ? (
                               <ArrowDownLeft className="w-3 h-3" />
                             ) : doc.type === 'OUTGOING' ? (
                               <ArrowUpRight className="w-3 h-3" />
-                            ) : (
+                            ) : doc.type === 'SURAT_TUGAS' ? (
                               <Briefcase className="w-3 h-3" />
+                            ) : (
+                              <Gavel className="w-3 h-3" />
                             )}
-                            {doc.type === 'INCOMING' ? 'Masuk' : doc.type === 'OUTGOING' ? 'Keluar' : 'Tugas'}
+                            {doc.type === 'INCOMING' ? 'Masuk' : doc.type === 'OUTGOING' ? 'Keluar' : doc.type === 'SURAT_TUGAS' ? 'Tugas' : 'SK'}
                           </span>
                         </td>
                         <td className="p-4">
-                          <p className="text-sm font-semibold text-slate-800 line-clamp-1 group-hover:text-indigo-700 transition-colors">
-                            {doc.title}
-                          </p>
-                          <p className="text-xs text-slate-400 md:hidden mt-0.5">
-                            {doc.reference_number}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => toggleBookmark(doc.id)}
+                              className={`flex-shrink-0 transition-all hover:scale-110 ${
+                                doc.bookmarked ? 'text-amber-500' : 'text-slate-300 hover:text-amber-400'
+                              }`}
+                              title={doc.bookmarked ? 'Hapus dari favorit' : 'Tambah ke favorit'}
+                            >
+                              <Star className={`w-4 h-4 ${doc.bookmarked ? 'fill-amber-400' : ''}`} />
+                            </button>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-800 line-clamp-1 group-hover:text-indigo-700 transition-colors">
+                                {doc.title}
+                              </p>
+                              <p className="text-xs text-slate-400 md:hidden mt-0.5">
+                                {doc.reference_number}
+                              </p>
+                            </div>
+                          </div>
+                          {doc.attachments && doc.attachments.length > 0 && (
+                            <span className="inline-flex items-center gap-1 mt-1.5 text-[10px] text-indigo-600 font-semibold">
+                              <FilePlus className="w-3 h-3" />
+                              {doc.attachments.length} lampiran
+                            </span>
+                          )}
                         </td>
                         <td className="p-4 text-sm text-slate-600 hidden md:table-cell font-mono">
                           {doc.reference_number}
@@ -712,30 +1009,58 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                         </td>
                         <td className="p-4">
                           <div className="flex items-center justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setPreviewDoc(doc)}
-                              className="h-9 w-9 p-0 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setEditDoc({ ...doc })}
-                              className="h-9 w-9 p-0 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDelete(doc.id)}
-                              className="h-9 w-9 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            {showTrash ? (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleRestore(doc.id)}
+                                  className="h-9 w-9 p-0 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                                  title="Pulihkan"
+                                >
+                                  <RotateCcw className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handlePurge(doc.id)}
+                                  className="h-9 w-9 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                  title="Hapus permanen"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </>
+                            ) : (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setPreviewDoc(doc)}
+                                  className="h-9 w-9 p-0 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                                  title="Lihat"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setEditDoc({ ...doc })}
+                                  className="h-9 w-9 p-0 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                                  title="Edit"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDelete(doc.id)}
+                                  className="h-9 w-9 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                  title="Pindahkan ke trash"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -895,7 +1220,7 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Tipe</p>
                   <p className="font-semibold text-slate-800">
-                    {previewDoc.type === 'INCOMING' ? 'Surat Masuk' : previewDoc.type === 'OUTGOING' ? 'Surat Keluar' : 'Surat Tugas'}
+                    {previewDoc.type === 'INCOMING' ? 'Surat Masuk' : previewDoc.type === 'OUTGOING' ? 'Surat Keluar' : previewDoc.type === 'SURAT_TUGAS' ? 'Surat Tugas' : 'Surat Keputusan'}
                   </p>
                 </div>
                 <div>
@@ -909,6 +1234,20 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Tanggal</p>
                   <p className="font-semibold text-slate-800 tabular-nums">{previewDoc.date}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Status</p>
+                  <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full ${
+                    previewDoc.status === 'DITERIMA'
+                      ? 'bg-blue-50 text-blue-700 border border-blue-100'
+                      : previewDoc.status === 'DIPROSES'
+                        ? 'bg-amber-50 text-amber-700 border border-amber-100'
+                        : previewDoc.status === 'SELESAI'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                          : 'bg-slate-50 text-slate-700 border border-slate-100'
+                  }`}>
+                    {previewDoc.status || 'DIARSIPKAN'}
+                  </span>
                 </div>
                 {previewDoc.sender && (
                   <div>
@@ -925,6 +1264,58 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                 <div className="col-span-2 sm:col-span-1">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Seksi</p>
                   <p className="font-semibold text-slate-800">{previewDoc.seksi}</p>
+                </div>
+              </div>
+
+              {/* QR Code + Attachments row */}
+              <div className="mt-4 pt-4 border-t border-slate-200 flex flex-col sm:flex-row gap-4">
+                {/* QR Code */}
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <img
+                    src={`/api/documents/${previewDoc.id}/qr?token=${token}`}
+                    alt="QR Code"
+                    className="w-24 h-24 rounded-lg border border-slate-200 bg-white"
+                  />
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-1">
+                      <QrCode className="w-3 h-3" />
+                      QR Verifikasi
+                    </p>
+                    <p className="text-xs text-slate-600 leading-snug">
+                      Scan untuk verifikasi keaslian via halaman publik
+                    </p>
+                    <a
+                      href={`/verify/${encodeURIComponent(previewDoc.reference_number)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center mt-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+                    >
+                      Buka halaman verifikasi →
+                    </a>
+                  </div>
+                </div>
+
+                {/* Attachments list */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1">
+                    <FilePlus className="w-3 h-3" />
+                    Lampiran ({previewDoc.attachments?.length || 0})
+                  </p>
+                  {previewDoc.attachments && previewDoc.attachments.length > 0 ? (
+                    <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                      {previewDoc.attachments.map((att) => (
+                        <div key={att.id} className="flex items-center gap-2 bg-white rounded-lg p-2 border border-slate-100">
+                          <FileText className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                          <span className="text-xs font-medium text-slate-700 truncate flex-1">{att.filename}</span>
+                          <span className="text-[10px] text-slate-400 flex-shrink-0">
+                            {(att.file_size / 1024).toFixed(0)} KB
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">Tidak ada lampiran tambahan</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -965,11 +1356,12 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                   <select
                     className="flex h-11 w-full rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus-ring px-3 py-2 text-sm outline-none transition-all cursor-pointer"
                     value={editDoc.type}
-                    onChange={(e) => setEditDoc({ ...editDoc, type: e.target.value as 'INCOMING' | 'OUTGOING' | 'SURAT_TUGAS' })}
+                    onChange={(e) => setEditDoc({ ...editDoc, type: e.target.value as 'INCOMING' | 'OUTGOING' | 'SURAT_TUGAS' | 'SURAT_KEPUTUSAN' })}
                   >
                     <option value="INCOMING">Surat Masuk</option>
                     <option value="OUTGOING">Surat Keluar</option>
                     <option value="SURAT_TUGAS">Surat Tugas</option>
+                    <option value="SURAT_KEPUTUSAN">Surat Keputusan</option>
                   </select>
                 </div>
                 <div className="space-y-1.5">
@@ -993,6 +1385,19 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                       Seksi Pengolahan dan Pemasaran ikan
                     </option>
                     <option value="Bidang Perikanan">Bidang Perikanan</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Status</label>
+                  <select
+                    className="flex h-11 w-full rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus-ring px-3 py-2 text-sm outline-none transition-all cursor-pointer"
+                    value={editDoc.status || 'DIARSIPKAN'}
+                    onChange={(e) => setEditDoc({ ...editDoc, status: e.target.value as DocumentStatus })}
+                  >
+                    <option value="DITERIMA">Diterima</option>
+                    <option value="DIPROSES">Diproses</option>
+                    <option value="SELESAI">Selesai</option>
+                    <option value="DIARSIPKAN">Diarsipkan</option>
                   </select>
                 </div>
                 <div className="space-y-1.5">
@@ -1104,28 +1509,31 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    {logs.map((log) => (
+                    {logs.map((log) => {
+                      const actionColor = (a: string) => {
+                        if (a === 'UPLOAD' || a === 'LOGIN' || a === 'RESTORE') return 'bg-emerald-50 text-emerald-700 border border-emerald-100';
+                        if (a === 'UPDATE' || a === 'VIEW' || a === 'DOWNLOAD') return 'bg-blue-50 text-blue-700 border border-blue-100';
+                        if (a === 'DELETE' || a === 'PURGE' || a === 'LOGOUT' || a === 'FAILED_LOGIN') return 'bg-red-50 text-red-700 border border-red-100';
+                        return 'bg-slate-50 text-slate-700 border border-slate-100';
+                      };
+                      return (
                       <tr key={log.id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
                         <td className="p-4">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full ${
-                              log.action === 'UPLOAD'
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                                : log.action === 'UPDATE'
-                                  ? 'bg-blue-50 text-blue-700 border border-blue-100'
-                                  : 'bg-red-50 text-red-700 border border-red-100'
-                            }`}
-                          >
+                          <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full ${actionColor(log.action)}`}>
                             {log.action}
                           </span>
+                          {log.detail && (
+                            <p className="text-[10px] text-slate-400 mt-1 italic line-clamp-1">{log.detail}</p>
+                          )}
                         </td>
                         <td className="p-4 text-sm text-slate-600 font-medium">{log.document_title || '-'}</td>
-                        <td className="p-4 text-sm text-slate-600">{log.username || '-'}</td>
+                        <td className="p-4 text-sm text-slate-600">{log.username || '-'}{log.ip && <p className="text-[10px] text-slate-400 mt-0.5">{log.ip}</p>}</td>
                         <td className="p-4 text-sm text-slate-400 tabular-nums">
                           {format(new Date(log.timestamp), 'dd MMM yyyy, HH:mm')}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               )}

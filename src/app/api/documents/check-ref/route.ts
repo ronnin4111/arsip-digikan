@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
 
     const where: Record<string, unknown> = {
       referenceNumber: { equals: refNum, mode: 'insensitive' },
+      deletedAt: null,
     };
     if (excludeId && !isNaN(excludeId)) {
       where.id = { not: excludeId };

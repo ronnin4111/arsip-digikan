@@ -11,6 +11,8 @@ function transformLog(log: any) {
     document_title: log.documentTitle,
     user_id: log.userId,
     username: log.username,
+    ip: log.ip,
+    detail: log.detail,
     timestamp: log.timestamp,
   };
 }

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getAuthUser } from '@/lib/auth';
-import { isBlobUrl } from '@/lib/blob';
-import { isGoogleDriveFileId } from '@/lib/google-drive';
+import { logAction } from '@/lib/log';
 
 function transformDoc(doc: any) {
   return {
@@ -16,8 +15,21 @@ function transformDoc(doc: any) {
     date: doc.date,
     seksi: doc.seksi,
     pdf_filename: doc.pdfFilename,
+    status: doc.status,
+    text_content: doc.textContent,
+    deleted_at: doc.deletedAt,
     created_at: doc.createdAt,
     created_by: doc.createdBy,
+    attachments: (doc.attachments || []).map((a: any) => ({
+      id: a.id,
+      document_id: a.documentId,
+      filename: a.filename,
+      storage_ref: a.storageRef,
+      file_size: a.fileSize,
+      mime_type: a.mimeType,
+      created_at: a.createdAt,
+    })),
+    bookmarked: !!doc.bookmarked?.length,
   };
 }
 
@@ -44,7 +56,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { type, title, reference_number, referenceNumber, category, sender, recipient, date, seksi } = body;
+    const { type, title, reference_number, referenceNumber, category, sender, recipient, date, seksi, status } = body;
     const refNum = (reference_number || referenceNumber || '').trim();
 
     // === Duplicate reference number detection (skip current document) ===
@@ -53,6 +65,7 @@ export async function PUT(
         where: {
           referenceNumber: { equals: refNum, mode: 'insensitive' },
           id: { not: documentId },
+          deletedAt: null,
         },
         select: { id: true, title: true, date: true },
       });
@@ -73,23 +86,23 @@ export async function PUT(
       data: {
         ...(type !== undefined && { type }),
         ...(title !== undefined && { title }),
-        ...(refNum !== undefined && { referenceNumber: refNum }),
+        ...(refNum !== undefined && refNum !== '' && { referenceNumber: refNum }),
         ...(category !== undefined && { category }),
         ...(sender !== undefined && { sender }),
         ...(recipient !== undefined && { recipient }),
         ...(date !== undefined && { date }),
         ...(seksi !== undefined && { seksi }),
+        ...(status !== undefined && { status }),
       },
     });
 
-    await db.log.create({
-      data: {
-        action: 'UPDATE',
-        documentId: updated.id,
-        documentTitle: updated.title,
-        userId: authUser.id,
-        username: authUser.username,
-      },
+    await logAction({
+      action: 'UPDATE',
+      documentId: updated.id,
+      documentTitle: updated.title,
+      userId: authUser.id,
+      username: authUser.username,
+      request,
     });
 
     return NextResponse.json({ success: true });
@@ -99,7 +112,7 @@ export async function PUT(
   }
 }
 
-// DELETE /api/documents/:id
+// DELETE /api/documents/:id — soft delete (move to trash)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -121,38 +134,70 @@ export async function DELETE(
       return NextResponse.json({ error: 'Dokumen tidak ditemukan' }, { status: 404 });
     }
 
-    // Delete PDF from storage (Google Drive or Vercel Blob)
-    // Use dynamic import to avoid loading googleapis eagerly
-    if (isGoogleDriveFileId(existing.pdfFilename) || isBlobUrl(existing.pdfFilename)) {
-      try {
-        const { deletePdf } = await import('@/lib/blob');
-        await deletePdf(existing.pdfFilename);
-      } catch (e) {
-        console.error('Failed to delete file from storage:', e);
-      }
-    }
-
-    // Nullify documentId in related logs
-    await db.log.updateMany({
-      where: { documentId: documentId },
-      data: { documentId: null },
+    // Soft delete: set deletedAt instead of removing row
+    await db.document.update({
+      where: { id: documentId },
+      data: { deletedAt: new Date() },
     });
 
-    await db.document.delete({ where: { id: documentId } });
-
-    await db.log.create({
-      data: {
-        action: 'DELETE',
-        documentId: null,
-        documentTitle: existing.title,
-        userId: authUser.id,
-        username: authUser.username,
-      },
+    await logAction({
+      action: 'DELETE',
+      documentId,
+      documentTitle: existing.title,
+      userId: authUser.id,
+      username: authUser.username,
+      request,
+      detail: `Soft delete ref=${existing.referenceNumber}`,
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Delete document error:', error);
     return NextResponse.json({ error: 'Gagal menghapus dokumen' }, { status: 500 });
+  }
+}
+
+// GET /api/documents/:id — fetch single document
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const authUser = getAuthUser(request);
+  if (!authUser) {
+    return NextResponse.json({ error: 'Tidak terautentikasi' }, { status: 401 });
+  }
+
+  try {
+    const { id } = await params;
+    const documentId = parseInt(id, 10);
+    if (isNaN(documentId)) {
+      return NextResponse.json({ error: 'ID dokumen tidak valid' }, { status: 400 });
+    }
+
+    const doc = await db.document.findUnique({
+      where: { id: documentId },
+      include: {
+        attachments: true,
+        bookmarks: { where: { userId: authUser.id }, select: { id: true } },
+      },
+    });
+    if (!doc) {
+      return NextResponse.json({ error: 'Dokumen tidak ditemukan' }, { status: 404 });
+    }
+
+    // Log VIEW action
+    await logAction({
+      action: 'VIEW',
+      documentId: doc.id,
+      documentTitle: doc.title,
+      userId: authUser.id,
+      username: authUser.username,
+      request,
+    });
+
+    return NextResponse.json(transformDoc(doc));
+  } catch (error) {
+    console.error('Get document error:', error);
+    return NextResponse.json({ error: 'Gagal mengambil dokumen' }, { status: 500 });
   }
 }

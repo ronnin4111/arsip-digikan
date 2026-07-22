@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { verifyToken, JwtPayload } from '@/lib/auth';
 import { isBlobUrl, isLocalRef, readLocalFile } from '@/lib/blob';
 import { isGoogleDriveFileId } from '@/lib/google-drive';
+import { logAction } from '@/lib/log';
 
 export async function GET(
   request: NextRequest,
@@ -41,6 +42,16 @@ export async function GET(
     if (!document) {
       return NextResponse.json({ error: 'Dokumen tidak ditemukan' }, { status: 404 });
     }
+
+    // Log DOWNLOAD action (best-effort, don't block on it)
+    logAction({
+      action: 'DOWNLOAD',
+      documentId: document.id,
+      documentTitle: document.title,
+      userId: authUser.id,
+      username: authUser.username,
+      request,
+    }).catch(() => {});
 
     const pdfRef = document.pdfFilename;
 
