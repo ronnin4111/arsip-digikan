@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
 
     const documents = await db.document.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
     });
 
     return NextResponse.json(documents.map(transformDoc));
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
 
     const type = formData.get('type') as string;
     const title = formData.get('title') as string;
-    const referenceNumber = (formData.get('reference_number') as string) || (formData.get('referenceNumber') as string);
+    const referenceNumber = ((formData.get('reference_number') as string) || (formData.get('referenceNumber') as string) || '').trim();
     const category = formData.get('category') as string;
     const sender = (formData.get('sender') as string) || '';
     const recipient = (formData.get('recipient') as string) || '';
@@ -88,6 +88,23 @@ export async function POST(request: NextRequest) {
 
     if (!file) {
       return NextResponse.json({ error: 'File PDF wajib diunggah' }, { status: 400 });
+    }
+
+    // === Duplicate reference number detection ===
+    // Trim + case-insensitive comparison so "  001/SK/2026  " matches "001/SK/2026"
+    const duplicate = await db.document.findFirst({
+      where: { referenceNumber: { equals: referenceNumber, mode: 'insensitive' } },
+      select: { id: true, title: true, date: true },
+    });
+    if (duplicate) {
+      return NextResponse.json(
+        {
+          error: `Nomor surat "${referenceNumber}" sudah terdaftar pada dokumen lain (ID: ${duplicate.id}, tanggal: ${duplicate.date}).`,
+          code: 'DUPLICATE_REFERENCE_NUMBER',
+          duplicate,
+        },
+        { status: 409 }
+      );
     }
 
     // Dynamic import - only loads googleapis when actually uploading

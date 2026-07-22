@@ -45,7 +45,28 @@ export async function PUT(
 
     const body = await request.json();
     const { type, title, reference_number, referenceNumber, category, sender, recipient, date, seksi } = body;
-    const refNum = reference_number || referenceNumber;
+    const refNum = (reference_number || referenceNumber || '').trim();
+
+    // === Duplicate reference number detection (skip current document) ===
+    if (refNum) {
+      const dup = await db.document.findFirst({
+        where: {
+          referenceNumber: { equals: refNum, mode: 'insensitive' },
+          id: { not: documentId },
+        },
+        select: { id: true, title: true, date: true },
+      });
+      if (dup) {
+        return NextResponse.json(
+          {
+            error: `Nomor surat "${refNum}" sudah dipakai dokumen lain (ID: ${dup.id}, tanggal: ${dup.date}).`,
+            code: 'DUPLICATE_REFERENCE_NUMBER',
+            duplicate: dup,
+          },
+          { status: 409 }
+        );
+      }
+    }
 
     const updated = await db.document.update({
       where: { id: documentId },

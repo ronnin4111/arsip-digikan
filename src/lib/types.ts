@@ -6,7 +6,7 @@ export interface User {
 
 export interface Document {
   id: number;
-  type: 'INCOMING' | 'OUTGOING';
+  type: 'INCOMING' | 'OUTGOING' | 'SURAT_TUGAS';
   title: string;
   reference_number: string;
   category: string;
@@ -33,5 +33,5 @@ export interface StorageUsage {
   usedBytes: number;
   limitBytes: number;
   fileCount: number;
-  storageType?: 'google-drive' | 'vercel-blob';
+  storageType?: 'google-drive' | 'vercel-blob' | 'local';
 }

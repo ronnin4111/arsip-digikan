@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { verifyToken, JwtPayload } from '@/lib/auth';
-import { isBlobUrl } from '@/lib/blob';
+import { isBlobUrl, isLocalRef, readLocalFile } from '@/lib/blob';
 import { isGoogleDriveFileId } from '@/lib/google-drive';
 
 export async function GET(
@@ -43,6 +43,23 @@ export async function GET(
     }
 
     const pdfRef = document.pdfFilename;
+
+    // Local FS file → read from disk and stream as attachment
+    if (isLocalRef(pdfRef)) {
+      const buffer = await readLocalFile(pdfRef);
+      if (!buffer) {
+        return NextResponse.json({ error: 'File PDF tidak ditemukan di storage lokal' }, { status: 404 });
+      }
+      const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
+      return new NextResponse(arrayBuffer, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="${document.title}.pdf"`,
+          'Content-Length': buffer.length.toString(),
+        },
+      });
+    }
 
     // Google Drive file ID → download the file and stream it as attachment
     if (isGoogleDriveFileId(pdfRef)) {

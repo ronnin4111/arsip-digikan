@@ -5,6 +5,9 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
   reactStrictMode: false,
+  turbopack: {
+    root: __dirname,
+  },
   images: {
     remotePatterns: [
       {

@@ -19,6 +19,15 @@ import {
   History,
   Users,
   HardDrive,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Inbox,
+  Loader2,
+  Briefcase,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react';
 import DriveSetup from '@/components/DriveSetup';
 import { format } from 'date-fns';
@@ -51,10 +60,16 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
   const [editUserId, setEditUserId] = useState<number | null>(null);
   const [storageUsage, setStorageUsage] = useState<StorageUsage | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [loadingDocs, setLoadingDocs] = useState(true);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<10 | 20 | 50>(10);
 
   // Fetch documents and storage when filters change
   useEffect(() => {
     if (!token) return;
+    setLoadingDocs(true);
 
     const params = new URLSearchParams();
     if (search) params.append('q', search);
@@ -68,8 +83,35 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
     })
       .then(res => res.ok ? res.json() : [])
       .then(data => setDocuments(Array.isArray(data) ? data : []))
-      .catch(() => setDocuments([]));
+      .catch(() => setDocuments([]))
+      .finally(() => setLoadingDocs(false));
   }, [token, search, typeFilter, categoryFilter, dateFilter, seksiFilter, refreshKey]);
+
+  // Reset to page 1 whenever filters or page size change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, typeFilter, categoryFilter, dateFilter, seksiFilter, pageSize, refreshKey]);
+
+  // Pagination computations
+  const totalDocs = documents.length;
+  const totalPages = Math.max(1, Math.ceil(totalDocs / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIdx = (safePage - 1) * pageSize;
+  const endIdx = startIdx + pageSize;
+  const paginatedDocuments = documents.slice(startIdx, endIdx);
+  const pagesToShow = (() => {
+    // Show up to 5 page numbers around the current page
+    const maxButtons = 5;
+    const half = Math.floor(maxButtons / 2);
+    let start = Math.max(1, safePage - half);
+    let end = Math.min(totalPages, start + maxButtons - 1);
+    if (end - start + 1 < maxButtons) {
+      start = Math.max(1, end - maxButtons + 1);
+    }
+    const arr: number[] = [];
+    for (let i = start; i <= end; i++) arr.push(i);
+    return arr;
+  })();
 
   useEffect(() => {
     if (!token) return;
@@ -231,161 +273,254 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
+  const totalIncoming = documents.filter((d) => d.type === 'INCOMING').length;
+  const totalOutgoing = documents.filter((d) => d.type === 'OUTGOING').length;
+  const totalTugas = documents.filter((d) => d.type === 'SURAT_TUGAS').length;
+
   return (
-    <div className="min-h-screen bg-[#F1F5F9] font-sans flex flex-col">
+    <div className="min-h-screen mesh-bg font-sans flex flex-col">
       {/* Navbar */}
-      <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-6 shrink-0 sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-blue-600 flex items-center justify-center rounded-none">
-            <FileText className="w-5 h-5 text-white" />
+      <header className="sticky top-0 z-30 glass border-b border-slate-200/60">
+        <div className="h-16 max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center shadow-glow">
+              <FileText className="w-4.5 h-4.5 text-white" />
+            </div>
+            <div className="flex flex-col">
+              <h1 className="font-bold text-base sm:text-lg tracking-tight text-slate-900 leading-none">
+                Arsip-<span className="font-light text-slate-500">Digikan</span>
+              </h1>
+              <span className="hidden sm:block text-[10px] text-slate-400 font-medium tracking-wide mt-0.5">
+                Digital Archive Platform
+              </span>
+            </div>
           </div>
-          <h1 className="font-bold text-xl tracking-tight text-slate-900">
-            ARSIP-<span className="font-light">DIGIKAN</span>
-          </h1>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-4">
-          {user?.role === 'admin' && (
+
+          <div className="flex items-center gap-2 sm:gap-3">
+            {user?.role === 'admin' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setShowUsers(true);
+                  fetchUsersList();
+                }}
+                className="hidden sm:inline-flex h-9 text-xs font-semibold text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all"
+              >
+                <Users className="w-3.5 h-3.5 mr-1.5 text-indigo-500" />
+                Pengguna
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
               onClick={() => {
-                setShowUsers(true);
-                fetchUsersList();
+                setShowLogs(true);
+                fetchLogs();
               }}
-              className="text-xs font-bold text-slate-600 hidden sm:flex"
+              className="h-9 text-xs font-semibold text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all"
             >
-              <Users className="w-4 h-4 mr-2" />
-              Manajemen Pengguna
+              <History className="w-3.5 h-3.5 sm:mr-1.5 text-violet-500" />
+              <span className="hidden sm:inline">Log Aktivitas</span>
             </Button>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setShowLogs(true);
-              fetchLogs();
-            }}
-            className="text-xs font-bold text-slate-600"
-          >
-            <History className="w-4 h-4 sm:mr-2" />
-            <span className="hidden sm:inline">Log Aktivitas</span>
-          </Button>
-          <div className="text-right hidden md:block">
-            <p className="text-sm font-semibold text-slate-800">{user?.username}</p>
-            <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-              {user?.role}
-            </p>
+
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50/80 border border-slate-200/60">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center text-white text-xs font-bold">
+                {user?.username?.charAt(0).toUpperCase() || 'U'}
+              </div>
+              <div className="text-left">
+                <p className="text-xs font-semibold text-slate-800 leading-none">{user?.username}</p>
+                <p className="text-[10px] text-slate-500 uppercase font-medium tracking-wider mt-0.5">
+                  {user?.role}
+                </p>
+              </div>
+            </div>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={logout}
+              className="h-9 w-9 p-0 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+            >
+              <LogOut className="w-4 h-4" />
+            </Button>
           </div>
-          <Button variant="ghost" size="sm" onClick={logout} className="text-slate-500 hover:text-red-500">
-            <LogOut className="w-4 h-4" />
-          </Button>
         </div>
       </header>
 
       {/* Main Content */}
       <main className="flex-1 p-4 sm:p-6">
         <div className="max-w-7xl mx-auto space-y-6">
+          {/* Header row */}
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 animate-fade-in-up">
+            <div>
+              <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wider mb-1">
+                Dashboard
+              </p>
+              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
+                Selamat datang, {user?.username} 👋
+              </h2>
+              <p className="text-sm text-slate-500 mt-1">
+                Berikut ringkasan arsip dan dokumen perikanan Anda hari ini.
+              </p>
+            </div>
+            <Button
+              onClick={onAddDocument}
+              className="h-11 px-5 text-sm font-semibold shadow-glow bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 transition-all duration-300 hover:-translate-y-0.5"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Unggah Dokumen
+            </Button>
+          </div>
+
           {/* Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-            <Card className="rounded-none border-slate-200">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-emerald-50 flex items-center justify-center rounded-none">
-                    <FileText className="w-5 h-5 text-emerald-600" />
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+            {/* Total Documents */}
+            <Card
+              className="card-hover rounded-2xl border-slate-200/60 shadow-soft overflow-hidden animate-fade-in-up"
+              style={{ animationDelay: '50ms' }}
+            >
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-md shadow-emerald-200">
+                    <FileText className="w-5 h-5 text-white" />
                   </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                      Total Dokumen
-                    </p>
-                    <p className="text-2xl font-bold text-slate-800">{documents.length}</p>
-                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Total
+                  </span>
                 </div>
+                <p className="text-3xl font-bold text-slate-900 leading-none tracking-tight">
+                  {documents.length}
+                </p>
+                <p className="text-xs text-slate-500 mt-1.5 font-medium">Total Dokumen</p>
               </CardContent>
             </Card>
-            <Card className="rounded-none border-slate-200">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-blue-50 flex items-center justify-center rounded-none">
-                    <Download className="w-5 h-5 text-blue-600" />
+
+            {/* Incoming */}
+            <Card
+              className="card-hover rounded-2xl border-slate-200/60 shadow-soft overflow-hidden animate-fade-in-up"
+              style={{ animationDelay: '100ms' }}
+            >
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center shadow-md shadow-blue-200">
+                    <ArrowDownLeft className="w-5 h-5 text-white" />
                   </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                      Surat Masuk
-                    </p>
-                    <p className="text-2xl font-bold text-slate-800">
-                      {documents.filter((d) => d.type === 'INCOMING').length}
-                    </p>
-                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Masuk
+                  </span>
                 </div>
+                <p className="text-3xl font-bold text-slate-900 leading-none tracking-tight">
+                  {totalIncoming}
+                </p>
+                <p className="text-xs text-slate-500 mt-1.5 font-medium">Surat Masuk</p>
               </CardContent>
             </Card>
-            <Card className="rounded-none border-slate-200">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-amber-50 flex items-center justify-center rounded-none">
-                    <FileText className="w-5 h-5 text-amber-600" />
+
+            {/* Outgoing */}
+            <Card
+              className="card-hover rounded-2xl border-slate-200/60 shadow-soft overflow-hidden animate-fade-in-up"
+              style={{ animationDelay: '150ms' }}
+            >
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-md shadow-amber-200">
+                    <ArrowUpRight className="w-5 h-5 text-white" />
                   </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                      Surat Keluar
-                    </p>
-                    <p className="text-2xl font-bold text-slate-800">
-                      {documents.filter((d) => d.type === 'OUTGOING').length}
-                    </p>
-                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Keluar
+                  </span>
                 </div>
+                <p className="text-3xl font-bold text-slate-900 leading-none tracking-tight">
+                  {totalOutgoing}
+                </p>
+                <p className="text-xs text-slate-500 mt-1.5 font-medium">Surat Keluar</p>
               </CardContent>
             </Card>
-            <Card className="rounded-none border-slate-200">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-purple-50 flex items-center justify-center rounded-none">
-                    <HardDrive className="w-5 h-5 text-purple-600" />
+
+            {/* Surat Tugas */}
+            <Card
+              className="card-hover rounded-2xl border-slate-200/60 shadow-soft overflow-hidden animate-fade-in-up"
+              style={{ animationDelay: '175ms' }}
+            >
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-md shadow-emerald-200">
+                    <Briefcase className="w-5 h-5 text-white" />
                   </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                      Penyimpanan
-                    </p>
-                    <p className="text-2xl font-bold text-slate-800">
-                      {storageUsage ? formatBytes(storageUsage.usedBytes) : '...'}
-                    </p>
-                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Tugas
+                  </span>
                 </div>
+                <p className="text-3xl font-bold text-slate-900 leading-none tracking-tight">
+                  {totalTugas}
+                </p>
+                <p className="text-xs text-slate-500 mt-1.5 font-medium">Surat Tugas</p>
+              </CardContent>
+            </Card>
+
+            {/* Storage */}
+            <Card
+              className="card-hover rounded-2xl border-slate-200/60 shadow-soft overflow-hidden animate-fade-in-up"
+              style={{ animationDelay: '200ms' }}
+            >
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center shadow-md shadow-violet-200">
+                    <HardDrive className="w-5 h-5 text-white" />
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Storage
+                  </span>
+                </div>
+                <p className="text-3xl font-bold text-slate-900 leading-none tracking-tight">
+                  {storageUsage ? formatBytes(storageUsage.usedBytes) : '...'}
+                </p>
+                <p className="text-xs text-slate-500 mt-1.5 font-medium">Penyimpanan</p>
               </CardContent>
             </Card>
           </div>
 
           {/* Storage Bar */}
           {storageUsage && (
-            <div className="bg-white rounded-none border border-slate-200 p-4">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                  Penggunaan Penyimpanan
-                  {storageUsage.storageType === 'google-drive' && (
-                    <span className="ml-2 text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold">
-                      GOOGLE DRIVE
+            <Card className="rounded-2xl border-slate-200/60 shadow-soft animate-fade-in-up" style={{ animationDelay: '250ms' }}>
+              <CardContent className="p-5">
+                <div className="flex flex-wrap justify-between items-center mb-3 gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Penggunaan Penyimpanan
                     </span>
-                  )}
-                  {storageUsage.storageType === 'vercel-blob' && (
-                    <span className="ml-2 text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">
-                      VERCEL BLOB
-                    </span>
-                  )}
-                </span>
-                <span className="text-xs text-slate-500">
-                  {formatBytes(storageUsage.usedBytes)} / {formatBytes(storageUsage.limitBytes)} (
-                  {storageUsage.fileCount} file)
-                </span>
-              </div>
-              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-blue-600 rounded-full transition-all duration-500"
-                  style={{
-                    width: `${Math.min(100, (storageUsage.usedBytes / storageUsage.limitBytes) * 100)}%`,
-                  }}
-                />
-              </div>
-            </div>
+                    {storageUsage.storageType === 'google-drive' && (
+                      <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold border border-emerald-200">
+                        Google Drive
+                      </span>
+                    )}
+                    {storageUsage.storageType === 'vercel-blob' && (
+                      <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold border border-amber-200">
+                        Vercel Blob
+                      </span>
+                    )}
+                    {storageUsage.storageType === 'local' && (
+                      <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold border border-indigo-200">
+                        Local Storage
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-xs text-slate-500 font-medium tabular-nums">
+                    {formatBytes(storageUsage.usedBytes)} / {formatBytes(storageUsage.limitBytes)} ·{' '}
+                    <span className="text-slate-400">{storageUsage.fileCount} file</span>
+                  </span>
+                </div>
+                <div className="relative h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className="absolute inset-y-0 left-0 bg-gradient-to-r from-indigo-500 via-violet-500 to-purple-500 rounded-full transition-all duration-700 ease-out"
+                    style={{
+                      width: `${Math.min(100, (storageUsage.usedBytes / storageUsage.limitBytes) * 100)}%`,
+                    }}
+                  />
+                </div>
+              </CardContent>
+            </Card>
           )}
 
           {/* Drive Setup - shows when Google Drive needs configuration */}
@@ -394,145 +529,176 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
           )}
 
           {/* Filters */}
-          <Card className="rounded-none border-slate-200">
-            <CardContent className="p-4">
-              <div className="flex flex-col sm:flex-row gap-3">
+          <Card className="rounded-2xl border-slate-200/60 shadow-soft animate-fade-in-up" style={{ animationDelay: '300ms' }}>
+            <CardContent className="p-4 sm:p-5">
+              <div className="flex flex-col lg:flex-row gap-3">
                 <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <Input
-                    className="pl-10 bg-white rounded-none"
+                    className="pl-10 h-11 bg-slate-50/50 border-slate-200 focus:bg-white focus-ring"
                     placeholder="Cari judul atau nomor referensi..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                   />
                 </div>
-                <select
-                  className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm"
-                  value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value)}
-                >
-                  <option value="">Semua Tipe</option>
-                  <option value="INCOMING">Surat Masuk</option>
-                  <option value="OUTGOING">Surat Keluar</option>
-                </select>
-                <select
-                  className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm"
-                  value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
-                >
-                  <option value="">Semua Kategori</option>
-                  <option value="Segera">Segera</option>
-                  <option value="Penting">Penting</option>
-                  <option value="Biasa">Biasa</option>
-                  <option value="Rahasia">Rahasia</option>
-                </select>
-                <select
-                  className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm"
-                  value={seksiFilter}
-                  onChange={(e) => setSeksiFilter(e.target.value)}
-                >
-                  <option value="">Semua Seksi</option>
-                  <option value="Perikanan Budidaya">Perikanan Budidaya</option>
-                  <option value="Perikanan Tangkap">Perikanan Tangkap</option>
-                  <option value="Seksi Pengolahan dan Pemasaran ikan">
-                    Seksi Pengolahan dan Pemasaran ikan
-                  </option>
-                  <option value="Bidang Perikanan">Bidang Perikanan</option>
-                </select>
-                <Input
-                  type="date"
-                  className="w-auto bg-white rounded-none"
-                  value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value)}
-                />
+                <div className="flex flex-wrap gap-2">
+                  <select
+                    className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 focus-ring hover:border-slate-300 transition-colors cursor-pointer"
+                    value={typeFilter}
+                    onChange={(e) => setTypeFilter(e.target.value)}
+                  >
+                    <option value="">Semua Tipe</option>
+                    <option value="INCOMING">Surat Masuk</option>
+                    <option value="OUTGOING">Surat Keluar</option>
+                    <option value="SURAT_TUGAS">Surat Tugas</option>
+                  </select>
+                  <select
+                    className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 focus-ring hover:border-slate-300 transition-colors cursor-pointer"
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                  >
+                    <option value="">Semua Kategori</option>
+                    <option value="Segera">Segera</option>
+                    <option value="Penting">Penting</option>
+                    <option value="Biasa">Biasa</option>
+                    <option value="Rahasia">Rahasia</option>
+                    <option value="Surat Tugas">Surat Tugas</option>
+                  </select>
+                  <select
+                    className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 focus-ring hover:border-slate-300 transition-colors cursor-pointer"
+                    value={seksiFilter}
+                    onChange={(e) => setSeksiFilter(e.target.value)}
+                  >
+                    <option value="">Semua Seksi</option>
+                    <option value="Perikanan Budidaya">Perikanan Budidaya</option>
+                    <option value="Perikanan Tangkap">Perikanan Tangkap</option>
+                    <option value="Seksi Pengolahan dan Pemasaran ikan">
+                      Pengolahan & Pemasaran
+                    </option>
+                    <option value="Bidang Perikanan">Bidang Perikanan</option>
+                  </select>
+                  <Input
+                    type="date"
+                    className="h-11 w-auto bg-white border-slate-200 focus-ring"
+                    value={dateFilter}
+                    onChange={(e) => setDateFilter(e.target.value)}
+                  />
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Add Document Button */}
-          <div className="flex justify-end">
-            <Button onClick={onAddDocument} className="rounded-none shadow-sm">
-              <Plus className="w-4 h-4 mr-2" />
-              Unggah Dokumen Baru
-            </Button>
-          </div>
-
           {/* Documents Table */}
-          <Card className="rounded-none border-slate-200 overflow-hidden">
+          <Card className="rounded-2xl border-slate-200/60 shadow-soft overflow-hidden animate-fade-in-up" style={{ animationDelay: '350ms' }}>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 p-4">
+                  <tr className="bg-slate-50/80 border-b border-slate-200">
+                    <th className="text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 p-4">
                       Tipe
                     </th>
-                    <th className="text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 p-4">
+                    <th className="text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 p-4">
                       Judul
                     </th>
-                    <th className="text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 p-4 hidden md:table-cell">
+                    <th className="text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 p-4 hidden md:table-cell">
                       No. Referensi
                     </th>
-                    <th className="text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 p-4 hidden lg:table-cell">
+                    <th className="text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 p-4 hidden lg:table-cell">
                       Kategori
                     </th>
-                    <th className="text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 p-4 hidden lg:table-cell">
+                    <th className="text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 p-4 hidden lg:table-cell">
                       Seksi
                     </th>
-                    <th className="text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 p-4 hidden sm:table-cell">
+                    <th className="text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 p-4 hidden sm:table-cell">
                       Tanggal
                     </th>
-                    <th className="text-right text-[10px] font-bold uppercase tracking-widest text-slate-400 p-4">
+                    <th className="text-right text-[10px] font-bold uppercase tracking-wider text-slate-500 p-4">
                       Aksi
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {documents.length === 0 ? (
+                  {loadingDocs ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-12 text-slate-400">
-                        <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                        <p className="font-medium">Belum ada dokumen</p>
-                        <p className="text-xs mt-1">Unggah dokumen pertama Anda</p>
+                      <td colSpan={7} className="text-center py-16 text-slate-400">
+                        <Loader2 className="w-8 h-8 mx-auto mb-3 animate-spin text-indigo-400" />
+                        <p className="text-sm font-medium">Memuat dokumen...</p>
+                      </td>
+                    </tr>
+                  ) : documents.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="text-center py-16 text-slate-400">
+                        <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
+                          <Inbox className="w-8 h-8 text-slate-300" />
+                        </div>
+                        <p className="font-semibold text-slate-600 text-base">Belum ada dokumen</p>
+                        <p className="text-xs mt-1 text-slate-400">
+                          Klik tombol "Unggah Dokumen" untuk menambah arsip pertama Anda
+                        </p>
+                      </td>
+                    </tr>
+                  ) : paginatedDocuments.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="text-center py-16 text-slate-400">
+                        <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
+                          <Inbox className="w-8 h-8 text-slate-300" />
+                        </div>
+                        <p className="font-semibold text-slate-600 text-base">Tidak ada dokumen pada halaman ini</p>
+                        <p className="text-xs mt-1 text-slate-400">
+                          Coba ubah filter atau pindah ke halaman lain
+                        </p>
                       </td>
                     </tr>
                   ) : (
-                    documents.map((doc) => (
+                    paginatedDocuments.map((doc, idx) => (
                       <tr
                         key={doc.id}
-                        className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors"
+                        className="border-b border-slate-100 hover:bg-indigo-50/30 transition-colors group"
+                        style={{ animationDelay: `${idx * 30}ms` }}
                       >
                         <td className="p-4">
                           <span
-                            className={`inline-flex items-center px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full ${
                               doc.type === 'INCOMING'
-                                ? 'bg-blue-50 text-blue-700'
-                                : 'bg-amber-50 text-amber-700'
+                                ? 'bg-blue-50 text-blue-700 border border-blue-100'
+                                : doc.type === 'OUTGOING'
+                                  ? 'bg-amber-50 text-amber-700 border border-amber-100'
+                                  : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
                             }`}
                           >
-                            {doc.type === 'INCOMING' ? 'Masuk' : 'Keluar'}
+                            {doc.type === 'INCOMING' ? (
+                              <ArrowDownLeft className="w-3 h-3" />
+                            ) : doc.type === 'OUTGOING' ? (
+                              <ArrowUpRight className="w-3 h-3" />
+                            ) : (
+                              <Briefcase className="w-3 h-3" />
+                            )}
+                            {doc.type === 'INCOMING' ? 'Masuk' : doc.type === 'OUTGOING' ? 'Keluar' : 'Tugas'}
                           </span>
                         </td>
                         <td className="p-4">
-                          <p className="text-sm font-semibold text-slate-800 line-clamp-1">
+                          <p className="text-sm font-semibold text-slate-800 line-clamp-1 group-hover:text-indigo-700 transition-colors">
                             {doc.title}
                           </p>
-                          <p className="text-xs text-slate-400 md:hidden">
+                          <p className="text-xs text-slate-400 md:hidden mt-0.5">
                             {doc.reference_number}
                           </p>
                         </td>
-                        <td className="p-4 text-sm text-slate-600 hidden md:table-cell">
+                        <td className="p-4 text-sm text-slate-600 hidden md:table-cell font-mono">
                           {doc.reference_number}
                         </td>
                         <td className="p-4 hidden lg:table-cell">
                           <span
-                            className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                            className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full ${
                               doc.category === 'Segera'
-                                ? 'bg-red-50 text-red-700'
+                                ? 'bg-red-50 text-red-700 border border-red-100'
                                 : doc.category === 'Penting'
-                                  ? 'bg-amber-50 text-amber-700'
+                                  ? 'bg-amber-50 text-amber-700 border border-amber-100'
                                   : doc.category === 'Rahasia'
-                                    ? 'bg-purple-50 text-purple-700'
-                                    : 'bg-slate-50 text-slate-600'
+                                    ? 'bg-purple-50 text-purple-700 border border-purple-100'
+                                    : doc.category === 'Surat Tugas'
+                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                      : 'bg-slate-50 text-slate-600 border border-slate-100'
                             }`}
                           >
                             {doc.category}
@@ -541,7 +707,7 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                         <td className="p-4 text-sm text-slate-600 hidden lg:table-cell">
                           {doc.seksi}
                         </td>
-                        <td className="p-4 text-sm text-slate-600 hidden sm:table-cell">
+                        <td className="p-4 text-sm text-slate-500 hidden sm:table-cell tabular-nums">
                           {doc.date}
                         </td>
                         <td className="p-4">
@@ -550,7 +716,7 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                               variant="ghost"
                               size="sm"
                               onClick={() => setPreviewDoc(doc)}
-                              className="h-8 w-8 p-0 text-slate-400 hover:text-blue-600"
+                              className="h-9 w-9 p-0 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
                             >
                               <Eye className="w-4 h-4" />
                             </Button>
@@ -558,7 +724,7 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                               variant="ghost"
                               size="sm"
                               onClick={() => setEditDoc({ ...doc })}
-                              className="h-8 w-8 p-0 text-slate-400 hover:text-emerald-600"
+                              className="h-9 w-9 p-0 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
                             >
                               <Edit className="w-4 h-4" />
                             </Button>
@@ -566,7 +732,7 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                               variant="ghost"
                               size="sm"
                               onClick={() => handleDelete(doc.id)}
-                              className="h-8 w-8 p-0 text-slate-400 hover:text-red-600"
+                              className="h-9 w-9 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
@@ -578,28 +744,125 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Footer */}
+            {!loadingDocs && totalDocs > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-slate-100 bg-slate-50/40">
+                <div className="flex items-center gap-3 text-xs text-slate-600 font-medium">
+                  <span>
+                    Menampilkan{' '}
+                    <span className="font-bold text-slate-800 tabular-nums">{startIdx + 1}</span>
+                    {'\u2013'}
+                    <span className="font-bold text-slate-800 tabular-nums">
+                      {Math.min(endIdx, totalDocs)}
+                    </span>{' '}
+                    dari <span className="font-bold text-slate-800 tabular-nums">{totalDocs}</span> dokumen
+                  </span>
+                  <select
+                    className="h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 focus-ring hover:border-slate-300 transition-colors cursor-pointer"
+                    value={pageSize}
+                    onChange={(e) => setPageSize(Number(e.target.value) as 10 | 20 | 50)}
+                  >
+                    <option value={10}>10 / halaman</option>
+                    <option value={20}>20 / halaman</option>
+                    <option value={50}>50 / halaman</option>
+                  </select>
+                </div>
+
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={safePage <= 1}
+                      onClick={() => setCurrentPage(1)}
+                      className="h-9 w-9 p-0 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                      aria-label="Halaman pertama"
+                    >
+                      <ChevronsLeft className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={safePage <= 1}
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      className="h-9 w-9 p-0 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                      aria-label="Halaman sebelumnya"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    {pagesToShow.map((p) => (
+                      <button
+                        key={p}
+                        onClick={() => setCurrentPage(p)}
+                        className={`h-9 min-w-[2.25rem] px-2 rounded-lg text-xs font-bold tabular-nums transition-all ${
+                          p === safePage
+                            ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-glow'
+                            : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={safePage >= totalPages}
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      className="h-9 w-9 p-0 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                      aria-label="Halaman berikutnya"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={safePage >= totalPages}
+                      onClick={() => setCurrentPage(totalPages)}
+                      className="h-9 w-9 p-0 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                      aria-label="Halaman terakhir"
+                    >
+                      <ChevronsRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </Card>
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 py-4 px-6 text-center">
-        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-          Arsip-Digikan &copy; {new Date().getFullYear()} — Sistem Manajemen Arsip Digital Perikanan
+      <footer className="border-t border-slate-200/60 py-5 px-6 text-center mt-auto">
+        <p className="text-[11px] text-slate-400 font-medium tracking-wide">
+          Arsip-Digikan &copy; {new Date().getFullYear()} · Sistem Manajemen Arsip Digital Perikanan
         </p>
       </footer>
 
       {/* Preview Modal */}
       {previewDoc && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-4xl max-h-[90vh] flex flex-col rounded-none">
-            <div className="flex items-center justify-between p-4 border-b border-slate-200">
-              <h3 className="font-bold text-lg text-slate-800 truncate pr-4">{previewDoc.title}</h3>
-              <div className="flex items-center gap-2">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in-up"
+          onClick={() => setPreviewDoc(null)}
+        >
+          <div
+            className="bg-white w-full max-w-4xl max-h-[90vh] flex flex-col rounded-2xl shadow-soft-lg overflow-hidden animate-scale-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-200 bg-slate-50/50">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center flex-shrink-0">
+                  <FileText className="w-4 h-4 text-white" />
+                </div>
+                <h3 className="font-bold text-base sm:text-lg text-slate-800 truncate">
+                  {previewDoc.title}
+                </h3>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
                 <Button
                   variant="outline"
                   size="sm"
-                  className="text-xs h-8"
+                  className="text-xs h-9 rounded-lg"
                   onClick={() => {
                     const a = document.createElement('a');
                     a.href = `/api/documents/${previewDoc.id}/download?token=${token}`;
@@ -607,61 +870,61 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                     a.click();
                   }}
                 >
-                  <Download className="w-3 h-3 mr-1" />
+                  <Download className="w-3.5 h-3.5 mr-1.5" />
                   Unduh
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setPreviewDoc(null)}
-                  className="shrink-0"
+                  className="h-9 w-9 p-0 rounded-lg hover:bg-slate-100"
                 >
                   <X className="w-5 h-5" />
                 </Button>
               </div>
             </div>
-            <div className="flex-1 overflow-hidden relative">
+            <div className="flex-1 overflow-hidden relative bg-slate-100">
               <iframe
                 src={`/api/documents/${previewDoc.id}/preview?token=${token}`}
                 className="w-full h-[70vh]"
                 title={previewDoc.title}
               />
             </div>
-            <div className="p-4 border-t border-slate-200 bg-slate-50">
+            <div className="p-4 sm:p-5 border-t border-slate-200 bg-slate-50/50">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Tipe</p>
-                  <p className="font-medium text-slate-800">
-                    {previewDoc.type === 'INCOMING' ? 'Surat Masuk' : 'Surat Keluar'}
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Tipe</p>
+                  <p className="font-semibold text-slate-800">
+                    {previewDoc.type === 'INCOMING' ? 'Surat Masuk' : previewDoc.type === 'OUTGOING' ? 'Surat Keluar' : 'Surat Tugas'}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">No. Referensi</p>
-                  <p className="font-medium text-slate-800">{previewDoc.reference_number}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">No. Referensi</p>
+                  <p className="font-semibold text-slate-800 font-mono">{previewDoc.reference_number}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Kategori</p>
-                  <p className="font-medium text-slate-800">{previewDoc.category}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Kategori</p>
+                  <p className="font-semibold text-slate-800">{previewDoc.category}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Tanggal</p>
-                  <p className="font-medium text-slate-800">{previewDoc.date}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Tanggal</p>
+                  <p className="font-semibold text-slate-800 tabular-nums">{previewDoc.date}</p>
                 </div>
                 {previewDoc.sender && (
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Pengirim</p>
-                    <p className="font-medium text-slate-800">{previewDoc.sender}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Pengirim</p>
+                    <p className="font-semibold text-slate-800">{previewDoc.sender}</p>
                   </div>
                 )}
                 {previewDoc.recipient && (
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Penerima</p>
-                    <p className="font-medium text-slate-800">{previewDoc.recipient}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Penerima</p>
+                    <p className="font-semibold text-slate-800">{previewDoc.recipient}</p>
                   </div>
                 )}
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Seksi</p>
-                  <p className="font-medium text-slate-800">{previewDoc.seksi}</p>
+                <div className="col-span-2 sm:col-span-1">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Seksi</p>
+                  <p className="font-semibold text-slate-800">{previewDoc.seksi}</p>
                 </div>
               </div>
             </div>
@@ -671,38 +934,56 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
 
       {/* Edit Modal */}
       {editDoc && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-none">
-            <div className="flex items-center justify-between p-4 border-b border-slate-200 sticky top-0 bg-white z-10">
-              <h3 className="font-bold text-lg text-slate-800">Edit Dokumen</h3>
-              <Button variant="ghost" size="sm" onClick={() => setEditDoc(null)}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in-up"
+          onClick={() => setEditDoc(null)}
+        >
+          <div
+            className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-soft-lg animate-scale-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-5 border-b border-slate-200 sticky top-0 bg-white z-10">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+                  <Edit className="w-4 h-4 text-white" />
+                </div>
+                <h3 className="font-bold text-lg text-slate-800">Edit Dokumen</h3>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setEditDoc(null)}
+                className="h-9 w-9 p-0 rounded-lg hover:bg-slate-100"
+              >
                 <X className="w-5 h-5" />
               </Button>
             </div>
-            <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleEditSubmit} className="p-5 sm:p-6 space-y-5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Tipe Surat</label>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Tipe Surat</label>
                   <select
-                    className="flex h-10 w-full rounded-md bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 px-3 py-2 text-sm outline-none transition-all"
+                    className="flex h-11 w-full rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus-ring px-3 py-2 text-sm outline-none transition-all cursor-pointer"
                     value={editDoc.type}
-                    onChange={(e) => setEditDoc({ ...editDoc, type: e.target.value as 'INCOMING' | 'OUTGOING' })}
+                    onChange={(e) => setEditDoc({ ...editDoc, type: e.target.value as 'INCOMING' | 'OUTGOING' | 'SURAT_TUGAS' })}
                   >
                     <option value="INCOMING">Surat Masuk</option>
                     <option value="OUTGOING">Surat Keluar</option>
+                    <option value="SURAT_TUGAS">Surat Tugas</option>
                   </select>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Kategori</label>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Kategori</label>
                   <Input
+                    className="h-11 bg-slate-50 border-slate-200 focus:bg-white focus-ring"
                     value={editDoc.category}
                     onChange={(e) => setEditDoc({ ...editDoc, category: e.target.value })}
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Seksi Bidang</label>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Seksi Bidang</label>
                   <select
-                    className="flex h-10 w-full rounded-md bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 px-3 py-2 text-sm outline-none transition-all"
+                    className="flex h-11 w-full rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus-ring px-3 py-2 text-sm outline-none transition-all cursor-pointer"
                     value={editDoc.seksi}
                     onChange={(e) => setEditDoc({ ...editDoc, seksi: e.target.value })}
                   >
@@ -714,48 +995,63 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                     <option value="Bidang Perikanan">Bidang Perikanan</option>
                   </select>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Nomor Referensi</label>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Nomor Referensi</label>
                   <Input
+                    className="h-11 bg-slate-50 border-slate-200 focus:bg-white focus-ring font-mono"
                     value={editDoc.reference_number}
                     onChange={(e) => setEditDoc({ ...editDoc, reference_number: e.target.value })}
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Tanggal</label>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Tanggal</label>
                   <Input
                     type="date"
+                    className="h-11 bg-slate-50 border-slate-200 focus:bg-white focus-ring"
                     value={editDoc.date}
                     onChange={(e) => setEditDoc({ ...editDoc, date: e.target.value })}
                   />
                 </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <label className="text-sm font-medium">Judul / Perihal</label>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Judul / Perihal</label>
                   <Input
+                    className="h-11 bg-slate-50 border-slate-200 focus:bg-white focus-ring"
                     value={editDoc.title}
                     onChange={(e) => setEditDoc({ ...editDoc, title: e.target.value })}
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Pengirim</label>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Pengirim</label>
                   <Input
+                    className="h-11 bg-slate-50 border-slate-200 focus:bg-white focus-ring"
                     value={editDoc.sender}
                     onChange={(e) => setEditDoc({ ...editDoc, sender: e.target.value })}
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Penerima</label>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Penerima</label>
                   <Input
+                    className="h-11 bg-slate-50 border-slate-200 focus:bg-white focus-ring"
                     value={editDoc.recipient}
                     onChange={(e) => setEditDoc({ ...editDoc, recipient: e.target.value })}
                   />
                 </div>
               </div>
               <div className="pt-4 border-t border-slate-100 flex gap-3 justify-end">
-                <Button type="button" variant="outline" onClick={() => setEditDoc(null)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEditDoc(null)}
+                  className="h-11 px-5 rounded-xl"
+                >
                   Batal
                 </Button>
-                <Button type="submit">Simpan Perubahan</Button>
+                <Button
+                  type="submit"
+                  className="h-11 px-5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-glow"
+                >
+                  Simpan Perubahan
+                </Button>
               </div>
             </form>
           </div>
@@ -764,49 +1060,68 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
 
       {/* Logs Modal */}
       {showLogs && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-3xl max-h-[90vh] flex flex-col rounded-none">
-            <div className="flex items-center justify-between p-4 border-b border-slate-200">
-              <h3 className="font-bold text-lg text-slate-800">Log Aktivitas</h3>
-              <Button variant="ghost" size="sm" onClick={() => setShowLogs(false)}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in-up"
+          onClick={() => setShowLogs(false)}
+        >
+          <div
+            className="bg-white w-full max-w-3xl max-h-[90vh] flex flex-col rounded-2xl shadow-soft-lg overflow-hidden animate-scale-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-5 border-b border-slate-200">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                  <History className="w-4 h-4 text-white" />
+                </div>
+                <h3 className="font-bold text-lg text-slate-800">Log Aktivitas</h3>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowLogs(false)}
+                className="h-9 w-9 p-0 rounded-lg hover:bg-slate-100"
+              >
                 <X className="w-5 h-5" />
               </Button>
             </div>
             <div className="flex-1 overflow-y-auto">
               {logs.length === 0 ? (
-                <div className="text-center py-12 text-slate-400">
-                  <History className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                  <p className="font-medium">Belum ada log aktivitas</p>
+                <div className="text-center py-16 text-slate-400">
+                  <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
+                    <History className="w-8 h-8 text-slate-300" />
+                  </div>
+                  <p className="font-semibold text-slate-600 text-base">Belum ada log aktivitas</p>
+                  <p className="text-xs mt-1 text-slate-400">Aktivitas akan muncul di sini</p>
                 </div>
               ) : (
                 <table className="w-full">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 sticky top-0">
-                      <th className="text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 p-4">Aksi</th>
-                      <th className="text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 p-4">Dokumen</th>
-                      <th className="text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 p-4">Pengguna</th>
-                      <th className="text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 p-4">Waktu</th>
+                    <tr className="bg-slate-50/80 border-b border-slate-200 sticky top-0">
+                      <th className="text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 p-4">Aksi</th>
+                      <th className="text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 p-4">Dokumen</th>
+                      <th className="text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 p-4">Pengguna</th>
+                      <th className="text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 p-4">Waktu</th>
                     </tr>
                   </thead>
                   <tbody>
                     {logs.map((log) => (
-                      <tr key={log.id} className="border-b border-slate-100">
+                      <tr key={log.id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
                         <td className="p-4">
                           <span
-                            className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                            className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full ${
                               log.action === 'UPLOAD'
-                                ? 'bg-emerald-50 text-emerald-700'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
                                 : log.action === 'UPDATE'
-                                  ? 'bg-blue-50 text-blue-700'
-                                  : 'bg-red-50 text-red-700'
+                                  ? 'bg-blue-50 text-blue-700 border border-blue-100'
+                                  : 'bg-red-50 text-red-700 border border-red-100'
                             }`}
                           >
                             {log.action}
                           </span>
                         </td>
-                        <td className="p-4 text-sm text-slate-600">{log.document_title || '-'}</td>
+                        <td className="p-4 text-sm text-slate-600 font-medium">{log.document_title || '-'}</td>
                         <td className="p-4 text-sm text-slate-600">{log.username || '-'}</td>
-                        <td className="p-4 text-sm text-slate-400">
+                        <td className="p-4 text-sm text-slate-400 tabular-nums">
                           {format(new Date(log.timestamp), 'dd MMM yyyy, HH:mm')}
                         </td>
                       </tr>
@@ -821,22 +1136,41 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
 
       {/* Users Modal */}
       {showUsers && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-3xl max-h-[90vh] flex flex-col rounded-none">
-            <div className="flex items-center justify-between p-4 border-b border-slate-200">
-              <h3 className="font-bold text-lg text-slate-800">Manajemen Pengguna</h3>
-              <Button variant="ghost" size="sm" onClick={() => setShowUsers(false)}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in-up"
+          onClick={() => setShowUsers(false)}
+        >
+          <div
+            className="bg-white w-full max-w-3xl max-h-[90vh] flex flex-col rounded-2xl shadow-soft-lg overflow-hidden animate-scale-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-5 border-b border-slate-200">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center">
+                  <Users className="w-4 h-4 text-white" />
+                </div>
+                <h3 className="font-bold text-lg text-slate-800">Manajemen Pengguna</h3>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowUsers(false)}
+                className="h-9 w-9 p-0 rounded-lg hover:bg-slate-100"
+              >
                 <X className="w-5 h-5" />
               </Button>
             </div>
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              <Card className="rounded-none border-slate-200">
-                <CardContent className="p-4">
-                  <h4 className="font-bold text-sm text-slate-800 mb-4">
+            <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
+              <Card className="rounded-2xl border-slate-200 shadow-soft">
+                <CardContent className="p-5">
+                  <h4 className="font-bold text-sm text-slate-800 mb-4 flex items-center gap-2">
+                    {editUserId ? <Edit className="w-4 h-4 text-emerald-500" /> : <Plus className="w-4 h-4 text-indigo-500" />}
                     {editUserId ? 'Edit Pengguna' : 'Tambah Pengguna Baru'}
                   </h4>
                   {userError && (
-                    <div className="bg-red-50 text-red-500 p-3 rounded-md text-sm mb-4">{userError}</div>
+                    <div className="bg-red-50 text-red-700 p-3 rounded-xl text-sm mb-4 border border-red-100 font-medium">
+                      {userError}
+                    </div>
                   )}
                   <form onSubmit={handleAddUser} className="space-y-3">
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -845,6 +1179,7 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                         value={newUserUsername}
                         onChange={(e) => setNewUserUsername(e.target.value)}
                         required
+                        className="h-11 bg-slate-50 border-slate-200 focus:bg-white focus-ring"
                       />
                       <Input
                         type="password"
@@ -852,9 +1187,10 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                         value={newUserPassword}
                         onChange={(e) => setNewUserPassword(e.target.value)}
                         required={!editUserId}
+                        className="h-11 bg-slate-50 border-slate-200 focus:bg-white focus-ring"
                       />
                       <select
-                        className="flex h-10 w-full rounded-md bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-500 px-3 py-2 text-sm outline-none transition-all"
+                        className="flex h-11 w-full rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus-ring px-3 py-2 text-sm outline-none transition-all cursor-pointer"
                         value={newUserRole}
                         onChange={(e) => setNewUserRole(e.target.value)}
                       >
@@ -863,11 +1199,21 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                       </select>
                     </div>
                     <div className="flex gap-2">
-                      <Button type="submit" size="sm">
+                      <Button
+                        type="submit"
+                        size="sm"
+                        className="h-10 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-glow"
+                      >
                         {editUserId ? 'Simpan Perubahan' : 'Tambah Pengguna'}
                       </Button>
                       {editUserId && (
-                        <Button type="button" size="sm" variant="outline" onClick={handleCancelEditUser}>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={handleCancelEditUser}
+                          className="h-10 rounded-xl"
+                        >
                           Batal
                         </Button>
                       )}
@@ -878,20 +1224,22 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
 
               <table className="w-full">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 p-4">Username</th>
-                    <th className="text-left text-[10px] font-bold uppercase tracking-widest text-slate-400 p-4">Role</th>
-                    <th className="text-right text-[10px] font-bold uppercase tracking-widest text-slate-400 p-4">Aksi</th>
+                  <tr className="bg-slate-50/80 border-b border-slate-200">
+                    <th className="text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 p-4">Username</th>
+                    <th className="text-left text-[10px] font-bold uppercase tracking-wider text-slate-500 p-4">Role</th>
+                    <th className="text-right text-[10px] font-bold uppercase tracking-wider text-slate-500 p-4">Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
                   {usersList.map((u: any) => (
-                    <tr key={u.id} className="border-b border-slate-100">
-                      <td className="p-4 text-sm font-medium text-slate-800">{u.username}</td>
+                    <tr key={u.id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                      <td className="p-4 text-sm font-semibold text-slate-800">{u.username}</td>
                       <td className="p-4">
                         <span
-                          className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                            u.role === 'admin' ? 'bg-blue-50 text-blue-700' : 'bg-slate-50 text-slate-600'
+                          className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full ${
+                            u.role === 'admin'
+                              ? 'bg-indigo-50 text-indigo-700 border border-indigo-100'
+                              : 'bg-slate-50 text-slate-600 border border-slate-100'
                           }`}
                         >
                           {u.role}
@@ -903,7 +1251,7 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleEditUserClick(u)}
-                            className="h-8 w-8 p-0 text-slate-400 hover:text-emerald-600"
+                            className="h-9 w-9 p-0 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
                           >
                             <Edit className="w-4 h-4" />
                           </Button>
@@ -911,7 +1259,7 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleDeleteUser(u.id)}
-                            className="h-8 w-8 p-0 text-slate-400 hover:text-red-600"
+                            className="h-9 w-9 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>

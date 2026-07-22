@@ -120,10 +120,10 @@ export default function DriveSetup({ token }: DriveSetupProps) {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-none border border-slate-200 p-4">
+      <div className="bg-white/80 backdrop-blur rounded-2xl border border-slate-200/60 shadow-soft p-4">
         <div className="flex items-center gap-2">
-          <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
-          <span className="text-sm text-slate-500">Memeriksa koneksi Google Drive...</span>
+          <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
+          <span className="text-sm text-slate-500 font-medium">Memeriksa koneksi Google Drive...</span>
         </div>
       </div>
     );
@@ -138,11 +138,11 @@ export default function DriveSetup({ token }: DriveSetupProps) {
   // If everything is working, show a minimal status
   if (isWorking) {
     return (
-      <div className="bg-emerald-50 border border-emerald-200 rounded-none p-3">
+      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 shadow-soft">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CheckCircle className="w-4 h-4 text-emerald-600" />
-            <span className="text-sm font-medium text-emerald-700">
+            <span className="text-sm font-semibold text-emerald-700">
               Google Drive Terhubung
             </span>
             <span className="text-xs text-emerald-600">
@@ -165,10 +165,10 @@ export default function DriveSetup({ token }: DriveSetupProps) {
 
   // Show setup panel when there are issues
   return (
-    <div className="bg-white rounded-none border-2 border-amber-200 overflow-hidden">
+    <div className="bg-white rounded-2xl border-2 border-amber-200 overflow-hidden shadow-soft">
       {/* Header */}
       <div
-        className="flex items-center justify-between p-4 bg-amber-50 cursor-pointer"
+        className="flex items-center justify-between p-4 bg-amber-50 cursor-pointer hover:bg-amber-100/60 transition-colors"
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-center gap-3">
@@ -212,14 +212,14 @@ export default function DriveSetup({ token }: DriveSetupProps) {
         <div className="p-4 space-y-4">
           {/* Diagnostic Info */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-            <div className="bg-slate-50 p-2 rounded">
+            <div className="bg-slate-50 p-2 rounded-lg">
               <span className="text-slate-400 block">Metode Auth</span>
               <span className="font-medium text-slate-700">
                 {driveStatus.authMethod === 'oauth2' ? 'OAuth2 ✓' :
                  driveStatus.authMethod === 'service-account' ? 'Service Account' : 'Tidak ada'}
               </span>
             </div>
-            <div className="bg-slate-50 p-2 rounded">
+            <div className="bg-slate-50 p-2 rounded-lg">
               <span className="text-slate-400 block">Folder</span>
               <span className="font-medium text-slate-700">
                 {driveStatus.folderAccessible ? (
@@ -229,13 +229,13 @@ export default function DriveSetup({ token }: DriveSetupProps) {
                 )}
               </span>
             </div>
-            <div className="bg-slate-50 p-2 rounded">
+            <div className="bg-slate-50 p-2 rounded-lg">
               <span className="text-slate-400 block">Shared Drive</span>
               <span className="font-medium text-slate-700">
                 {driveStatus.isInSharedDrive ? 'Ya ✓' : 'Tidak (My Drive)'}
               </span>
             </div>
-            <div className="bg-slate-50 p-2 rounded">
+            <div className="bg-slate-50 p-2 rounded-lg">
               <span className="text-slate-400 block">Upload Test</span>
               <span className="font-medium text-slate-700">
                 {driveStatus.canUpload ? (
@@ -255,7 +255,7 @@ export default function DriveSetup({ token }: DriveSetupProps) {
           )}
 
           {/* Setup Instructions - OAuth2 for personal accounts */}
-          <div className="border border-slate-200 rounded overflow-hidden">
+          <div className="border border-slate-200 rounded-xl overflow-hidden shadow-soft">
             <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
               <h4 className="text-sm font-bold text-slate-700">
                 Setup OAuth2 untuk Akun Gmail Pribadi
@@ -322,7 +322,7 @@ export default function DriveSetup({ token }: DriveSetupProps) {
                       <li>Klik OAuth Client ID Anda untuk mengedit</li>
                       <li>Di bagian <strong>Authorized redirect URIs</strong>, tambahkan:</li>
                     </ol>
-                    <div className="bg-slate-50 p-2 rounded font-mono text-xs break-all border">
+                    <div className="bg-slate-50 p-2 rounded-lg font-mono text-xs break-all border border-slate-200">
                       <code id="redirect-uri">{typeof window !== 'undefined' ? `${window.location.origin}/api/auth/google/callback` : '/api/auth/google/callback'}</code>
                       <button
                         onClick={() => copyToClipboard(typeof window !== 'undefined' ? `${window.location.origin}/api/auth/google/callback` : '')}
@@ -385,7 +385,7 @@ export default function DriveSetup({ token }: DriveSetupProps) {
                   </div>
 
                   {/* Playground code exchange */}
-                  <div className="mt-3 border border-slate-200 rounded p-3">
+                  <div className="mt-3 border border-slate-200 rounded-xl p-3 bg-slate-50/50">
                     <p className="text-xs font-medium text-slate-700 mb-2">
                       Jika menggunakan OAuth Playground, paste kode otorisasi di sini:
                     </p>
@@ -466,7 +466,7 @@ export default function DriveSetup({ token }: DriveSetupProps) {
                       <li>Buka <strong>Vercel Dashboard</strong> → Project → Settings → Environment Variables</li>
                       <li>Tambahkan variable baru:</li>
                     </ol>
-                    <div className="bg-slate-50 p-2 rounded border space-y-1">
+                    <div className="bg-slate-50 p-2 rounded-lg border border-slate-200 space-y-1">
                       <div>Name: <code className="bg-white px-1 rounded">GOOGLE_REFRESH_TOKEN</code></div>
                       <div>Value: <em>(paste refresh token yang didapat dari langkah 3)</em></div>
                     </div>

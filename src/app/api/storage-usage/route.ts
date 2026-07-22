@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getAuthUser } from '@/lib/auth';
-import { isBlobUrl } from '@/lib/blob';
+import {
+  isBlobUrl,
+  isLocalRef,
+  isLocalStorageEnabled,
+  getFileSize,
+  getStorageUsage,
+} from '@/lib/blob';
 import { isGoogleDriveConfigured, isGoogleDriveFileId } from '@/lib/google-drive';
 
 export async function GET(request: NextRequest) {
@@ -17,11 +23,20 @@ export async function GET(request: NextRequest) {
 
     const fileCount = documents.length;
 
-    // If Google Drive is configured, use Drive storage info
+    // Local FS mode — calculate from local files
+    if (isLocalStorageEnabled()) {
+      const info = await getStorageUsage();
+      return NextResponse.json({
+        usedBytes: info.usedBytes,
+        limitBytes: info.limitBytes,
+        fileCount,
+        storageType: 'local',
+      });
+    }
+
+    // Google Drive mode
     if (isGoogleDriveConfigured()) {
       try {
-        // Dynamic import - only loads googleapis when fetching Drive storage info
-        const { getStorageUsage } = await import('@/lib/blob');
         const driveInfo = await getStorageUsage();
         return NextResponse.json({
           usedBytes: driveInfo.usedBytes,
@@ -31,18 +46,14 @@ export async function GET(request: NextRequest) {
         });
       } catch (error) {
         console.error('Failed to get Google Drive storage info:', error);
-        // Fall through to calculate from individual files
       }
     }
 
-    // Calculate actual sizes from blob/drive files
-    // Dynamic import to avoid loading googleapis if not needed
-    const { getFileSize } = await import('@/lib/blob');
-
+    // Vercel Blob / unknown — calculate from individual files
     let usedBytes = 0;
     const sizePromises = documents.map(async (doc) => {
       const ref = doc.pdfFilename;
-      if (isGoogleDriveFileId(ref) || isBlobUrl(ref)) {
+      if (isGoogleDriveFileId(ref) || isBlobUrl(ref) || isLocalRef(ref)) {
         return getFileSize(ref);
       }
       return 500 * 1024; // Fallback estimate 500KB
@@ -52,8 +63,8 @@ export async function GET(request: NextRequest) {
     usedBytes = sizes.reduce((sum, size) => sum + size, 0);
 
     const limitBytes = isGoogleDriveConfigured()
-      ? 15 * 1024 * 1024 * 1024 // 15 GB for Google Drive
-      : 250 * 1024 * 1024; // 250 MB for Vercel Blob
+      ? 15 * 1024 * 1024 * 1024
+      : 250 * 1024 * 1024;
 
     return NextResponse.json({
       usedBytes,

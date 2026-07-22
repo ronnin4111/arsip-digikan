@@ -1,22 +1,25 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const interSans = Inter({
+  variable: "--font-inter-sans",
   subsets: ["latin"],
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Arsip-Digikan - Sistem Manajemen Arsip Digital Perikanan",
-  description: "Aplikasi manajemen arsip surat masuk dan keluar secara terstruktur dengan dukungan PDF.",
-  keywords: ["arsip", "digital", "perikanan", "dokumen", "surat"],
+  title: "Arsip-Digikan — Sistem Manajemen Arsip Digital Perikanan",
+  description:
+    "Platform manajemen arsip surat masuk & keluar yang modern, cepat, dan terstruktur. Dirancang untuk efisiensi birokrasi perikanan.",
+  keywords: ["arsip", "digital", "perikanan", "dokumen", "surat", "manajemen"],
 };
 
 export default function RootLayout({
@@ -27,7 +30,7 @@ export default function RootLayout({
   return (
     <html lang="id" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
+        className={`${interSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
         {children}
         <Toaster />
