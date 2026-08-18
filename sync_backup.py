@@ -1,9 +1,8 @@
 import os
 import subprocess
-import sys
 
 LOCAL_DIR = r"C:\Users\BUDIDAYA\arsip-digikan\uploads"
-REMOTE_NAME = "gdrive"
+REMOTE_NAME = "gdrive-arsip Storage"
 REMOTE_FOLDER = "ArsipDigikanLocalBackup"
 
 def sync_archives():
@@ -13,12 +12,12 @@ def sync_archives():
         print(f"[Rclone Sync] Folder lokal {LOCAL_DIR} belum ada. Tidak ada yang disinkronkan.")
         return
 
-    # Perintah rclone sync: menyamakan folder lokal ke cloud
+    # Perintah rclone sync: menyamakan folder lokal ke cloud akun baru
     cmd = ["rclone", "sync", LOCAL_DIR, f"{REMOTE_NAME}:{REMOTE_FOLDER}", "--progress"]
     
     try:
         result = subprocess.run(cmd, check=True)
-        print("[Rclone Sync] Sinkronisasi BERHASIL dan aman!")
+        print("[Rclone Sync] Sinkronisasi ke akun baru BERHASIL dan aman!")
     except subprocess.CalledProcessError as e:
         print(f"[Rclone Sync] Sinkronisasi GAGAL dengan kode error {e.returncode}")
     except Exception as e:
