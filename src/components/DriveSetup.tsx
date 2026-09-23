@@ -31,6 +31,8 @@ interface DriveTestResult {
   errors: string[];
   warnings: string[];
   instructions: string[];
+  refreshTokenSource?: 'database' | 'env_var' | 'none';
+  needsReauth?: boolean;
 }
 
 interface DriveSetupProps {
@@ -148,16 +150,35 @@ export default function DriveSetup({ token }: DriveSetupProps) {
             <span className="text-xs text-emerald-600">
               ({driveStatus.authMethod === 'oauth2' ? 'OAuth2' : 'Service Account'} • {driveStatus.folderName || driveStatus.folderId})
             </span>
+            {driveStatus.refreshTokenSource === 'database' && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 border border-emerald-200">
+                DB token
+              </span>
+            )}
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={testDrive}
-            className="h-7 text-xs text-emerald-600 hover:text-emerald-700"
-          >
-            <RefreshCw className="w-3 h-3 mr-1" />
-            Tes Ulang
-          </Button>
+          <div className="flex items-center gap-2">
+            {driveStatus.authMethod === 'oauth2' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={startOAuthFlow}
+                className="h-7 text-xs text-blue-600 hover:text-blue-700"
+                title="Re-authorize Google Drive (useful if token expires)"
+              >
+                <ExternalLink className="w-3 h-3 mr-1" />
+                Re-Connect
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={testDrive}
+              className="h-7 text-xs text-emerald-600 hover:text-emerald-700"
+            >
+              <RefreshCw className="w-3 h-3 mr-1" />
+              Tes Ulang
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -210,6 +231,60 @@ export default function DriveSetup({ token }: DriveSetupProps) {
 
       {expanded && (
         <div className="p-4 space-y-4">
+          {/* Prominent "Connect / Re-authorize Google Drive" CTA when needsReauth or not configured */}
+          {driveStatus.needsReauth && (
+            <div className="bg-blue-50 border-2 border-blue-300 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h4 className="text-sm font-bold text-blue-900 mb-1">
+                    Refresh Token Kedaluwarsa — Re-Otorisasi Diperlukan
+                  </h4>
+                  <p className="text-xs text-blue-700 mb-3">
+                    Google telah mencabut refresh token yang tersimpan. Klik tombol di bawah
+                    untuk mengotorisasi ulang Google Drive. Token baru akan otomatis disimpan
+                    ke database — tidak perlu update env var atau redeploy.
+                  </p>
+                  <Button
+                    size="sm"
+                    className="text-xs h-9 bg-blue-600 hover:bg-blue-700"
+                    onClick={startOAuthFlow}
+                  >
+                    <ExternalLink className="w-3 h-3 mr-1" />
+                    Re-Authorize Google Drive
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Show "Connect" CTA when no OAuth2 set up at all but client ID/secret exist */}
+          {!driveStatus.configured && !driveStatus.needsReauth && (
+            <div className="bg-blue-50 border-2 border-blue-300 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <HardDrive className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h4 className="text-sm font-bold text-blue-900 mb-1">
+                    Hubungkan Google Drive
+                  </h4>
+                  <p className="text-xs text-blue-700 mb-3">
+                    Klik tombol di bawah untuk mengotorisasi aplikasi mengakses Google Drive Anda.
+                    Refresh token akan otomatis disimpan ke database — tidak perlu update env var
+                    atau redeploy Vercel.
+                  </p>
+                  <Button
+                    size="sm"
+                    className="text-xs h-9 bg-blue-600 hover:bg-blue-700"
+                    onClick={startOAuthFlow}
+                  >
+                    <ExternalLink className="w-3 h-3 mr-1" />
+                    Connect Google Drive
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Diagnostic Info */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
             <div className="bg-slate-50 p-2 rounded-lg">

@@ -8,7 +8,7 @@ import {
   getFileSize,
   getStorageUsage,
 } from '@/lib/blob';
-import { isGoogleDriveConfigured, isGoogleDriveFileId } from '@/lib/google-drive';
+import { isGoogleDriveConfiguredAsync as isGoogleDriveConfigured, isGoogleDriveFileId } from '@/lib/google-drive';
 
 export async function GET(request: NextRequest) {
   const authUser = getAuthUser(request);
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Google Drive mode
-    if (isGoogleDriveConfigured()) {
+    if (await isGoogleDriveConfigured()) {
       try {
         const driveInfo = await getStorageUsage();
         return NextResponse.json({
@@ -62,7 +62,8 @@ export async function GET(request: NextRequest) {
     const sizes = await Promise.all(sizePromises);
     usedBytes = sizes.reduce((sum, size) => sum + size, 0);
 
-    const limitBytes = isGoogleDriveConfigured()
+    const driveConfigured = await isGoogleDriveConfigured();
+    const limitBytes = driveConfigured
       ? 15 * 1024 * 1024 * 1024
       : 250 * 1024 * 1024;
 
@@ -70,7 +71,7 @@ export async function GET(request: NextRequest) {
       usedBytes,
       limitBytes,
       fileCount,
-      storageType: isGoogleDriveConfigured() ? 'google-drive' : 'vercel-blob',
+      storageType: driveConfigured ? 'google-drive' : 'vercel-blob',
     });
   } catch (error) {
     console.error('Storage usage error:', error);

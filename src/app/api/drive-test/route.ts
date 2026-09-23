@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
+import {
+  getSetting,
+  isGoogleDriveConfiguredAsync,
+  getAuthMethodAsync,
+} from '@/lib/google-drive';
 
 /**
  * GET /api/drive-test
  * Tests Google Drive connection and provides diagnostic information.
+ * Reads refresh token / folder ID from DB first, then env var fallback.
+ *
  * Checks:
  * 1. Which auth method is configured (OAuth2 or Service Account)
  * 2. If the folder is accessible
@@ -29,10 +36,12 @@ export async function GET(request: NextRequest) {
     errors: string[];
     warnings: string[];
     instructions: string[];
+    refreshTokenSource?: 'database' | 'env_var' | 'none';
+    needsReauth?: boolean;
   } = {
     configured: false,
     authMethod: 'none',
-    folderId: process.env.GOOGLE_DRIVE_FOLDER_ID || '',
+    folderId: '',
     folderAccessible: false,
     canUpload: false,
     errors: [],
@@ -40,17 +49,28 @@ export async function GET(request: NextRequest) {
     instructions: [],
   };
 
+  // Read settings from DB first, then env var
+  const dbRefreshToken = await getSetting('GOOGLE_REFRESH_TOKEN');
+  const dbFolderId = await getSetting('GOOGLE_DRIVE_FOLDER_ID');
+  const envRefreshToken = process.env.GOOGLE_REFRESH_TOKEN;
+  const envFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+  const refreshToken = dbRefreshToken || envRefreshToken;
+  const folderId = dbFolderId || envFolderId || '';
+
+  result.folderId = folderId;
+  result.refreshTokenSource = dbRefreshToken ? 'database' : (envRefreshToken ? 'env_var' : 'none');
+
   // Check which auth method is configured
   const hasOAuth2 = !!(
     process.env.GOOGLE_CLIENT_ID &&
     process.env.GOOGLE_CLIENT_SECRET &&
-    process.env.GOOGLE_REFRESH_TOKEN
+    refreshToken
   );
   const hasServiceAccount = !!(
     process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL &&
     process.env.GOOGLE_PRIVATE_KEY
   );
-  const hasFolderId = !!process.env.GOOGLE_DRIVE_FOLDER_ID;
+  const hasFolderId = !!folderId;
 
   if (hasOAuth2) {
     result.authMethod = 'oauth2';
@@ -67,7 +87,7 @@ export async function GET(request: NextRequest) {
 
   if (!result.configured) {
     result.errors.push('Google Drive belum dikonfigurasi. Diperlukan OAuth2 atau Service Account.');
-    result.instructions.push('Setup OAuth2 dengan refresh token (direkomendasikan untuk akun Gmail pribadi).');
+    result.instructions.push('Klik tombol "Connect Google Drive" untuk otorisasi via OAuth2 (tidak perlu update env var).');
     return NextResponse.json(result);
   }
 
@@ -83,7 +103,7 @@ export async function GET(request: NextRequest) {
         process.env.GOOGLE_CLIENT_SECRET,
       );
       client.setCredentials({
-        refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+        refresh_token: refreshToken,
       });
       drive = google.drive({
         version: 'v3',
@@ -195,7 +215,11 @@ export async function GET(request: NextRequest) {
 
       result.uploadError = `Upload gagal (code ${err.code}): ${errorMsg}`;
 
-      if (result.authMethod === 'service-account' && !result.isInSharedDrive) {
+      // Detect auth-grant failure so the UI can show "Re-authorize" button
+      if (errorMsg.includes('invalid_grant') || errorMsg.includes('invalid_token')) {
+        result.needsReauth = true;
+        result.errors.push('Refresh token kedaluwarsa/dicabut oleh Google. Klik "Connect Google Drive" untuk re-otorisasi.');
+      } else if (result.authMethod === 'service-account' && !result.isInSharedDrive) {
         result.errors.push('Service Account tidak bisa upload ke folder di My Drive (personal).');
         result.instructions.push('Solusi: Gunakan OAuth2 dengan refresh token (direkomendasikan untuk akun Gmail pribadi).');
         result.instructions.push('Atau: Buat Shared Drive dan tambahkan Service Account sebagai member.');

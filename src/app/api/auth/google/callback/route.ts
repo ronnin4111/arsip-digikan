@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { setSetting, invalidateDriveCache } from '@/lib/google-drive';
+import { logAction } from '@/lib/log';
 
 /**
  * GET /api/auth/google/callback
  * Handles the OAuth2 callback from Google.
- * Exchanges the authorization code for tokens and displays the refresh token.
+ *  1. Exchanges the authorization code for tokens.
+ *  2. Persists the refresh token to the `settings` table (key=GOOGLE_REFRESH_TOKEN).
+ *  3. Invalidates the in-memory Drive cache so the next request picks up the new token.
+ *  4. Shows a friendly success page with a "Back to Dashboard" link.
+ *
+ * Notes:
+ * - Access token is NOT persisted (it expires in 1h). The refresh token is what we need.
+ * - The refresh token is rotated by Google each time the user re-authorizes with prompt=consent;
+ *   the previous one is automatically invalidated. Our DB upsert handles this cleanly.
  */
 export async function GET(request: NextRequest) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
@@ -12,6 +22,9 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
   const error = searchParams.get('error');
+  // Optional: admin can pre-authenticate by passing their app JWT in `state`
+  // so we can attribute the connection to a specific user in the log.
+  const state = searchParams.get('state') || '';
 
   if (error) {
     return new NextResponse(`
@@ -24,7 +37,7 @@ export async function GET(request: NextRequest) {
         <p>Pastikan OAuth consent screen dikonfigurasi dengan benar:</p>
         <ol>
           <li>Buka Google Cloud Console → APIs &amp; Services → OAuth consent screen</li>
-          <li>Set User Type ke <strong>External</strong></li>
+          <li>Set UserType ke <strong>External</strong></li>
           <li>Tambahkan email Gmail Anda sebagai <strong>Test User</strong></li>
           <li>Pastikan Google Drive API sudah di-enable</li>
         </ol>
@@ -104,8 +117,22 @@ export async function GET(request: NextRequest) {
       `, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
     }
 
-    // Success! Show the refresh token
-    const refreshToken = tokens.refresh_token;
+    // ─── Persist refresh token to DB ──────────────────────────────────────
+    const refreshToken = tokens.refresh_token as string;
+    await setSetting('GOOGLE_REFRESH_TOKEN', refreshToken);
+    invalidateDriveCache();
+
+    // Best-effort audit log (don't fail if log write fails)
+    try {
+      await logAction({
+        action: 'GOOGLE_DRIVE_CONNECT',
+        detail: 'Google Drive OAuth2 berhasil dikoneksikan via dashboard. Refresh token disimpan ke tabel settings.',
+      });
+    } catch {
+      // ignore log errors
+    }
+
+    // Masked preview for the success page
     const maskedToken = refreshToken.substring(0, 10) + '...' + refreshToken.substring(refreshToken.length - 5);
 
     return new NextResponse(`
@@ -116,66 +143,31 @@ export async function GET(request: NextRequest) {
         <style>
           body { font-family: system-ui; max-width: 700px; margin: 40px auto; padding: 20px; }
           .success { background: #f0fdf4; border: 2px solid #22c55e; border-radius: 12px; padding: 24px; margin: 20px 0; }
-          .token-box { background: #1e293b; color: #a5f3fc; padding: 16px; border-radius: 8px; font-family: monospace; font-size: 13px; word-break: break-all; position: relative; }
-          .copy-btn { position: absolute; top: 8px; right: 8px; background: #475569; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
-          .copy-btn:hover { background: #64748b; }
           .step { background: #f8fafc; border-left: 4px solid #3b82f6; padding: 12px 16px; margin: 12px 0; border-radius: 0 8px 8px 0; }
           .step-num { display: inline-block; background: #3b82f6; color: white; width: 24px; height: 24px; text-align: center; line-height: 24px; border-radius: 50%; font-size: 12px; font-weight: bold; margin-right: 8px; }
           h1 { color: #16a34a; }
-          .warning { background: #fefce8; border: 1px solid #eab308; border-radius: 8px; padding: 12px 16px; margin: 12px 0; }
+          .token-preview { background: #1e293b; color: #a5f3fc; padding: 12px 16px; border-radius: 8px; font-family: monospace; font-size: 12px; word-break: break-all; }
+          .btn { display: inline-block; background: #2563eb; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 14px; margin-top: 16px; }
+          .btn:hover { background: #1d4ed8; }
         </style>
       </head>
       <body>
         <div class="success">
           <h1>&#10003; Google Drive Berhasil Terhubung!</h1>
-          <p>Authorization berhasil. Sekarang Anda perlu menyimpan <strong>Refresh Token</strong> ke environment variables.</p>
+          <p>Refresh token telah <strong>disimpan otomatis ke database</strong>. Tidak perlu update env var atau redeploy.</p>
+          <p class="token-preview">${maskedToken}</p>
         </div>
-
-        <h3>Refresh Token Anda:</h3>
-        <div class="token-box" id="token-box">
-          <button class="copy-btn" onclick="copyToken()">Copy</button>
-          <span id="token-text">${refreshToken}</span>
-        </div>
-
-        <div class="warning">
-          <strong>&#9888; Penting:</strong> Simpan refresh token ini segera. Token ini hanya ditampilkan sekali!
-        </div>
-
-        <h3>Langkah Selanjutnya:</h3>
 
         <div class="step">
           <span class="step-num">1</span>
-          <strong>Buka Vercel Dashboard</strong> → Project Anda → Settings → Environment Variables
+          <strong>Klik tombol di bawah</strong> untuk kembali ke Dashboard dan mulai upload file.
         </div>
 
-        <div class="step">
-          <span class="step-num">2</span>
-          <strong>Tambahkan variable baru:</strong><br>
-          Name: <code>GOOGLE_REFRESH_TOKEN</code><br>
-          Value: <em>(paste refresh token di atas)</em>
-        </div>
-
-        <div class="step">
-          <span class="step-num">3</span>
-          <strong>Redeploy</strong> project Anda di Vercel agar variable baru terbaca
-        </div>
-
-        <div class="step">
-          <span class="step-num">4</span>
-          Setelah redeploy, buka dashboard dan upload file untuk memastikan file tersimpan di Google Drive Anda
-        </div>
-
-        <p style="margin-top:24px;"><a href="/" style="color:#2563eb;font-size:16px;">&#8592; Kembali ke Dashboard</a></p>
+        <a href="/" class="btn">Kembali ke Dashboard</a>
 
         <script>
-          function copyToken() {
-            const token = document.getElementById('token-text').textContent;
-            navigator.clipboard.writeText(token).then(() => {
-              const btn = document.querySelector('.copy-btn');
-              btn.textContent = 'Copied!';
-              setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
-            });
-          }
+          // Auto-redirect after 3 seconds so the user doesn't have to click
+          setTimeout(() => { window.location.href = '/'; }, 3000);
         </script>
       </body>
       </html>

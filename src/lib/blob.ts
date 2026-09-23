@@ -3,7 +3,9 @@ import fs from 'fs/promises';
 import path from 'path';
 
 // Pure functions re-exported directly (no googleapis loading)
-export { isGoogleDriveConfigured, isGoogleDriveFileId } from './google-drive';
+export { isGoogleDriveConfiguredAsync as isGoogleDriveConfigured, isGoogleDriveFileId } from './google-drive';
+// NOTE: `isGoogleDriveConfigured` here is the async version (returns Promise<boolean>).
+// All callers below already `await` it — no behavior change.
 
 /**
  * Check if local filesystem storage mode is enabled.
@@ -64,7 +66,7 @@ export async function uploadPdf(filename: string, buffer: Buffer): Promise<strin
   // Mode 2: Google Drive (if configured)
   const { isGoogleDriveConfigured, uploadToDrive } = await import('./google-drive');
 
-  if (isGoogleDriveConfigured()) {
+  if (await isGoogleDriveConfigured()) {
     try {
       console.log(`[Storage] Attempting Google Drive upload for: ${filename}`);
       const fileId = await uploadToDrive(filename, buffer);
@@ -248,7 +250,7 @@ export async function getStorageUsage(): Promise<{ usedBytes: number; limitBytes
 
   // Google Drive
   const { isGoogleDriveConfigured, getDriveStorageInfo } = await import('./google-drive');
-  if (isGoogleDriveConfigured()) {
+  if (await isGoogleDriveConfigured()) {
     try {
       const driveInfo = await getDriveStorageInfo();
       return {

@@ -6,8 +6,10 @@
  * 1. OAuth2 with Refresh Token (RECOMMENDED for personal Gmail accounts)
  *    - Works with personal @gmail.com accounts
  *    - Files are stored using your personal Drive's 15GB quota
- *    - Setup: Get refresh token via Google OAuth2 Playground
- *    - Env vars: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN
+ *    - Refresh token can be stored either:
+ *      a) In DB (table `settings`, key `GOOGLE_REFRESH_TOKEN`) — runtime-configurable via OAuth flow
+ *      b) In env var `GOOGLE_REFRESH_TOKEN` — fallback for legacy deployments
+ *    - Env vars: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET (+ optional GOOGLE_REFRESH_TOKEN)
  *
  * 2. Service Account (REQUIRES Shared Drive / Google Workspace)
  *    - Service Accounts have NO storage quota
@@ -18,18 +20,85 @@
  * Fallback: If Google Drive upload fails, Vercel Blob is used (250MB free)
  */
 
+import { prisma } from './db';
+
 // Types for lazy-loaded modules
 type AuthClientType = import('google-auth-library').JWT | import('google-auth-library').OAuth2Client;
 type DriveType = import('googleapis').drive_v3.Drive;
 
 // Lazy-initialized instances (not loaded until first use)
+// NOTE: invalidated by invalidateDriveCache() whenever refresh token changes
 let authClient: AuthClientType | null = null;
 let driveInstance: DriveType | null = null;
 
 /**
- * Check if OAuth2 with refresh token is configured
+ * In-memory cache of settings to avoid hitting DB on every Drive call.
+ * TTL: 30 seconds (refresh tokens don't change often, but we want quick
+ * pick-up when user re-authorizes via OAuth flow).
  */
-function isOAuth2Configured(): boolean {
+let settingsCache: Record<string, string> = {};
+let settingsCacheAt = 0;
+const SETTINGS_CACHE_TTL_MS = 30_000;
+
+export async function getSetting(key: string): Promise<string | undefined> {
+  const now = Date.now();
+  if (now - settingsCacheAt > SETTINGS_CACHE_TTL_MS) {
+    settingsCache = {};
+    settingsCacheAt = now;
+  }
+  if (key in settingsCache) return settingsCache[key];
+  try {
+    const row = await prisma.setting.findUnique({ where: { key } });
+    settingsCache[key] = row?.value ?? '';
+    return settingsCache[key] || undefined;
+  } catch {
+    // DB might not be ready (migration not applied yet) — fall back to env var
+    return process.env[key];
+  }
+}
+
+/**
+ * Persist a setting (called by OAuth callback after successful authorization).
+ * Also invalidates the in-memory + drive-instance cache so the new token
+ * takes effect immediately on the next request.
+ */
+export async function setSetting(key: string, value: string): Promise<void> {
+  await prisma.setting.upsert({
+    where: { key },
+    create: { key, value },
+    update: { value },
+  });
+  settingsCache[key] = value;
+  invalidateDriveCache();
+}
+
+/**
+ * Force the next Drive call to re-create the auth client and Drive instance.
+ * Called whenever refresh token (or any auth-related setting) changes.
+ */
+export function invalidateDriveCache(): void {
+  authClient = null;
+  driveInstance = null;
+  // Force settings cache reload too
+  settingsCacheAt = 0;
+}
+
+/**
+ * Check if OAuth2 with refresh token is configured (DB or env var)
+ */
+async function isOAuth2ConfiguredAsync(): Promise<boolean> {
+  return !!(
+    process.env.GOOGLE_CLIENT_ID &&
+    process.env.GOOGLE_CLIENT_SECRET &&
+    (await getSetting('GOOGLE_REFRESH_TOKEN'))
+  );
+}
+
+/**
+ * Sync version for places where we cannot await (e.g. drive-status route
+ * does its own async check). Checks env var only.
+ */
+function isOAuth2ConfiguredFromEnv(): boolean {
   return !!(
     process.env.GOOGLE_CLIENT_ID &&
     process.env.GOOGLE_CLIENT_SECRET &&
@@ -50,15 +119,16 @@ function isServiceAccountConfigured(): boolean {
 async function getAuthClient(): Promise<AuthClientType> {
   if (authClient) return authClient;
 
-  // Priority 1: OAuth2 with refresh token (works with personal Gmail)
-  if (isOAuth2Configured()) {
+  // Priority 1: OAuth2 with refresh token (DB or env var)
+  const refreshToken = await getSetting('GOOGLE_REFRESH_TOKEN');
+  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && refreshToken) {
     const { OAuth2Client } = await import('google-auth-library');
     const client = new OAuth2Client(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
     );
     client.setCredentials({
-      refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+      refresh_token: refreshToken,
     });
     authClient = client;
     return authClient;
@@ -94,30 +164,50 @@ async function getDrive(): Promise<DriveType> {
   return driveInstance;
 }
 
-function getFolderId(): string {
-  const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+async function getFolderIdAsync(): Promise<string> {
+  // Prefer DB setting, fall back to env var
+  const folderId = (await getSetting('GOOGLE_DRIVE_FOLDER_ID')) || process.env.GOOGLE_DRIVE_FOLDER_ID;
   if (!folderId) {
-    throw new Error('GOOGLE_DRIVE_FOLDER_ID env var is not set.');
+    throw new Error('GOOGLE_DRIVE_FOLDER_ID is not set (neither in DB nor env var).');
   }
   return folderId;
 }
 
 /**
  * Check if Google Drive is configured (any method)
- * This is a pure function - NO googleapis import needed
+ * Async version: considers DB-stored refresh token.
+ */
+export async function isGoogleDriveConfiguredAsync(): Promise<boolean> {
+  const folderId = (await getSetting('GOOGLE_DRIVE_FOLDER_ID')) || process.env.GOOGLE_DRIVE_FOLDER_ID;
+  if (!folderId) return false;
+  return (await isOAuth2ConfiguredAsync()) || isServiceAccountConfigured();
+}
+
+/**
+ * Sync version (env-var only) — kept for backward compatibility.
+ * Prefer isGoogleDriveConfiguredAsync() in route handlers.
  */
 export function isGoogleDriveConfigured(): boolean {
   return !!(
     process.env.GOOGLE_DRIVE_FOLDER_ID &&
-    (isOAuth2Configured() || isServiceAccountConfigured())
+    (isOAuth2ConfiguredFromEnv() || isServiceAccountConfigured())
   );
 }
 
 /**
- * Get the authentication method being used
+ * Get the authentication method being used (async — considers DB)
+ */
+export async function getAuthMethodAsync(): Promise<'oauth2' | 'service-account' | 'none'> {
+  if (await isOAuth2ConfiguredAsync()) return 'oauth2';
+  if (isServiceAccountConfigured()) return 'service-account';
+  return 'none';
+}
+
+/**
+ * Sync version (env-var only) — kept for backward compatibility.
  */
 export function getAuthMethod(): 'oauth2' | 'service-account' | 'none' {
-  if (isOAuth2Configured()) return 'oauth2';
+  if (isOAuth2ConfiguredFromEnv()) return 'oauth2';
   if (isServiceAccountConfigured()) return 'service-account';
   return 'none';
 }
@@ -135,7 +225,7 @@ export function isGoogleDriveFileId(value: string): boolean {
  */
 export async function uploadToDrive(filename: string, buffer: Buffer): Promise<string> {
   const drive = await getDrive();
-  const folderId = getFolderId();
+  const folderId = await getFolderIdAsync();
 
   const { Readable } = await import('stream');
   const stream = Readable.from(buffer);
@@ -277,7 +367,7 @@ export async function getDriveStorageInfo(): Promise<{ usedBytes: number; limitB
  */
 export async function listDriveFiles(): Promise<Array<{ id: string; name: string; size: number }>> {
   const drive = await getDrive();
-  const folderId = getFolderId();
+  const folderId = await getFolderIdAsync();
 
   const response = await drive.files.list({
     q: `'${folderId}' in parents and trashed = false`,
