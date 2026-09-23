@@ -54,12 +54,20 @@ export async function getSetting(key: string): Promise<string | undefined> {
     settingsCache = {};
     settingsCacheAt = now;
   }
-  if (key in settingsCache) return settingsCache[key];
+  if (key in settingsCache) {
+    const cached = settingsCache[key];
+    return cached || process.env[key];
+  }
   try {
     const db = await getDb();
     const row = await db.setting.findUnique({ where: { key } });
-    settingsCache[key] = row?.value ?? '';
-    return settingsCache[key] || undefined;
+    if (row?.value) {
+      settingsCache[key] = row.value;
+      return row.value;
+    }
+    // DB returned null/empty → fall back to env var (e.g. legacy GOOGLE_REFRESH_TOKEN)
+    settingsCache[key] = '';
+    return process.env[key];
   } catch {
     // DB might not be ready (migration not applied yet) — fall back to env var
     return process.env[key];
