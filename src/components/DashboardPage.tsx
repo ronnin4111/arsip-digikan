@@ -716,10 +716,10 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
             </Card>
           )}
 
-          {/* Drive Setup - DISABLED: menggunakan backup rclone lokal ke akun terpisah */}
-                    {/* {user?.role === 'admin' && token && (
-                      <DriveSetup token={token} />
-                    )} */}
+          {/* Drive Setup - shows Google Drive connection status + "Connect / Re-Authorize" button when token expires */}
+          {user?.role === 'admin' && token && (
+            <DriveSetup token={token} />
+          )}
 
           {/* Filters */}
           <Card className="rounded-2xl border-slate-200/60 shadow-soft animate-fade-in-up" style={{ animationDelay: '300ms' }}>
