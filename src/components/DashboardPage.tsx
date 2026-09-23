@@ -426,6 +426,7 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
   const totalIncoming = documents.filter((d) => d.type === 'INCOMING').length;
   const totalOutgoing = documents.filter((d) => d.type === 'OUTGOING').length;
   const totalTugas = documents.filter((d) => d.type === 'SURAT_TUGAS').length;
+  const totalSK = documents.filter((d) => d.type === 'SURAT_KEPUTUSAN').length;
 
   return (
     <div className="min-h-screen mesh-bg font-sans flex flex-col">
@@ -567,7 +568,7 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 sm:gap-4">
             {/* Total Documents */}
             <Card
               className="card-hover rounded-2xl border-slate-200/60 shadow-soft overflow-hidden animate-fade-in-up"
@@ -649,6 +650,27 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
                   {totalTugas}
                 </p>
                 <p className="text-xs text-slate-500 mt-1.5 font-medium">Surat Tugas</p>
+              </CardContent>
+            </Card>
+
+            {/* Surat Keputusan */}
+            <Card
+              className="card-hover rounded-2xl border-slate-200/60 shadow-soft overflow-hidden animate-fade-in-up"
+              style={{ animationDelay: '185ms' }}
+            >
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-400 to-fuchsia-500 flex items-center justify-center shadow-md shadow-purple-200">
+                    <Gavel className="w-5 h-5 text-white" />
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    SK
+                  </span>
+                </div>
+                <p className="text-3xl font-bold text-slate-900 leading-none tracking-tight">
+                  {totalSK}
+                </p>
+                <p className="text-xs text-slate-500 mt-1.5 font-medium">Surat Keputusan</p>
               </CardContent>
             </Card>
 
