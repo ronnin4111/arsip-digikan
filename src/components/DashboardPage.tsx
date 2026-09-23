@@ -428,6 +428,20 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
   const totalTugas = documents.filter((d) => d.type === 'SURAT_TUGAS').length;
   const totalSK = documents.filter((d) => d.type === 'SURAT_KEPUTUSAN').length;
 
+  /**
+   * Click a stat card to filter the document list by that type.
+   * Clicking the same (already-active) card again clears the filter
+   * so the user can get back to "all documents" easily.
+   */
+  const toggleTypeFilter = (type: string) => {
+    setTypeFilter((prev) => (prev === type ? '' : type));
+    // Scroll to document list so the user immediately sees the filtered results
+    setTimeout(() => {
+      const list = document.getElementById('document-list-anchor');
+      if (list) list.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+  };
+
   return (
     <div className="min-h-screen mesh-bg font-sans flex flex-col">
       {/* Navbar */}
@@ -569,9 +583,12 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
 
           {/* Stats */}
           <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 sm:gap-4">
-            {/* Total Documents */}
+            {/* Total Documents — clears the type filter when clicked */}
             <Card
-              className="card-hover rounded-2xl border-slate-200/60 shadow-soft overflow-hidden animate-fade-in-up"
+              onClick={() => setTypeFilter('')}
+              className={`card-hover rounded-2xl border-slate-200/60 shadow-soft overflow-hidden animate-fade-in-up cursor-pointer transition-all ${
+                typeFilter === '' ? 'ring-2 ring-indigo-500 ring-offset-2' : 'hover:border-indigo-300'
+              }`}
               style={{ animationDelay: '50ms' }}
             >
               <CardContent className="p-5">
@@ -592,7 +609,10 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
 
             {/* Incoming */}
             <Card
-              className="card-hover rounded-2xl border-slate-200/60 shadow-soft overflow-hidden animate-fade-in-up"
+              onClick={() => toggleTypeFilter('INCOMING')}
+              className={`card-hover rounded-2xl border-slate-200/60 shadow-soft overflow-hidden animate-fade-in-up cursor-pointer transition-all ${
+                typeFilter === 'INCOMING' ? 'ring-2 ring-indigo-500 ring-offset-2' : 'hover:border-blue-300'
+              }`}
               style={{ animationDelay: '100ms' }}
             >
               <CardContent className="p-5">
@@ -613,7 +633,10 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
 
             {/* Outgoing */}
             <Card
-              className="card-hover rounded-2xl border-slate-200/60 shadow-soft overflow-hidden animate-fade-in-up"
+              onClick={() => toggleTypeFilter('OUTGOING')}
+              className={`card-hover rounded-2xl border-slate-200/60 shadow-soft overflow-hidden animate-fade-in-up cursor-pointer transition-all ${
+                typeFilter === 'OUTGOING' ? 'ring-2 ring-indigo-500 ring-offset-2' : 'hover:border-amber-300'
+              }`}
               style={{ animationDelay: '150ms' }}
             >
               <CardContent className="p-5">
@@ -634,7 +657,10 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
 
             {/* Surat Tugas */}
             <Card
-              className="card-hover rounded-2xl border-slate-200/60 shadow-soft overflow-hidden animate-fade-in-up"
+              onClick={() => toggleTypeFilter('SURAT_TUGAS')}
+              className={`card-hover rounded-2xl border-slate-200/60 shadow-soft overflow-hidden animate-fade-in-up cursor-pointer transition-all ${
+                typeFilter === 'SURAT_TUGAS' ? 'ring-2 ring-indigo-500 ring-offset-2' : 'hover:border-emerald-300'
+              }`}
               style={{ animationDelay: '175ms' }}
             >
               <CardContent className="p-5">
@@ -655,7 +681,10 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
 
             {/* Surat Keputusan */}
             <Card
-              className="card-hover rounded-2xl border-slate-200/60 shadow-soft overflow-hidden animate-fade-in-up"
+              onClick={() => toggleTypeFilter('SURAT_KEPUTUSAN')}
+              className={`card-hover rounded-2xl border-slate-200/60 shadow-soft overflow-hidden animate-fade-in-up cursor-pointer transition-all ${
+                typeFilter === 'SURAT_KEPUTUSAN' ? 'ring-2 ring-indigo-500 ring-offset-2' : 'hover:border-purple-300'
+              }`}
               style={{ animationDelay: '185ms' }}
             >
               <CardContent className="p-5">
@@ -744,6 +773,7 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
           )}
 
           {/* Filters */}
+          <div id="document-list-anchor" className="scroll-mt-24">
           <Card className="rounded-2xl border-slate-200/60 shadow-soft animate-fade-in-up" style={{ animationDelay: '300ms' }}>
             <CardContent className="p-4 sm:p-5">
               <div className="flex flex-col lg:flex-row gap-3">
@@ -891,6 +921,7 @@ export default function Dashboard({ onAddDocument }: DashboardProps) {
               </div>
             </CardContent>
           </Card>
+          </div>{/* end document-list-anchor wrapper */}
 
           {/* Documents Table */}
           <Card className="rounded-2xl border-slate-200/60 shadow-soft overflow-hidden animate-fade-in-up" style={{ animationDelay: '350ms' }}>
