@@ -20,7 +20,15 @@
  * Fallback: If Google Drive upload fails, Vercel Blob is used (250MB free)
  */
 
-import { prisma } from './db';
+/**
+ * Dynamic import of Prisma client (lazy-loaded so this module doesn't pull in
+ * the entire Prisma client at startup — preserving the lazy-loading pattern
+ * this file already uses for googleapis).
+ */
+async function getDb() {
+  const { db } = await import('./db');
+  return db;
+}
 
 // Types for lazy-loaded modules
 type AuthClientType = import('google-auth-library').JWT | import('google-auth-library').OAuth2Client;
@@ -48,7 +56,8 @@ export async function getSetting(key: string): Promise<string | undefined> {
   }
   if (key in settingsCache) return settingsCache[key];
   try {
-    const row = await prisma.setting.findUnique({ where: { key } });
+    const db = await getDb();
+    const row = await db.setting.findUnique({ where: { key } });
     settingsCache[key] = row?.value ?? '';
     return settingsCache[key] || undefined;
   } catch {
@@ -63,7 +72,8 @@ export async function getSetting(key: string): Promise<string | undefined> {
  * takes effect immediately on the next request.
  */
 export async function setSetting(key: string, value: string): Promise<void> {
-  await prisma.setting.upsert({
+  const db = await getDb();
+  await db.setting.upsert({
     where: { key },
     create: { key, value },
     update: { value },
